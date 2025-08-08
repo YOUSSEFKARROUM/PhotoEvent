@@ -1,151 +1,259 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
-const { MongoClient } = require('mongodb');
-const bcrypt = require('bcryptjs');
-const path = require('path');
+/**
+ * Photoevents Backend Server
+ *
+ * Point d'entrée principal du backend Express.
+ * - Sécurité renforcée (helmet, CORS, rate limit)
+ * - Connexion MongoDB centralisée (mongoose)
+ * - Gestion robuste des erreurs
+ * - Création automatique de l'admin si absent
+ * - Documentation et logs explicites
+ */
+
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import uploadRoutes from './routes/uploadRoutes.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-// Vérification obligatoire de JWT_SECRET
+// --- Sécurité : Vérification obligatoire de JWT_SECRET ---
 if (!process.env.JWT_SECRET) {
   console.error('ERREUR CRITIQUE : La variable d\'environnement JWT_SECRET n\'est pas définie. Ajoutez-la dans un fichier .env à la racine du dossier backend.');
   process.exit(1);
 }
 
-// CORS global pour autoriser le frontend React
-app.use(cors({ origin: 'http://localhost:5173' }));
+// --- Connexion MongoDB centralisée (mongoose) ---
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/photoevents';
 
-// Sert le dossier uploads à la racine du projet
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Timeout pour la connexion MongoDB
+const connectWithTimeout = async () => {
+  try {
+    await mongoose.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 3000, // Réduit à 3 secondes
+      socketTimeoutMS: 30000, // Réduit à 30 secondes
+      connectTimeoutMS: 3000, // Timeout de connexion
+    });
+    console.log('✅ Connecté à MongoDB:', mongoUri);
+  } catch (err) {
+    console.error('❌ Erreur de connexion à MongoDB:', err.message);
+    console.log('⚠️  Le serveur démarre sans MongoDB. Certaines fonctionnalités seront limitées.');
+    // Ne pas arrêter le serveur, continuer sans DB
+  }
+};
 
-// Exemple de route racine
-app.get('/', (req, res) => {
-  res.send('Backend is running!');
-});
+// Connexion MongoDB asynchrone (non-bloquante)
+setTimeout(connectWithTimeout, 100);
 
-// Middleware de sécurité
-app.use(helmet());
+// --- Sécurité CORS améliorée ---
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL 
+    : ['http://localhost:3000', 'http://localhost:5173'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
-// Ajout automatique de la configuration CORS
-// app.use(cors({ origin: 'http://localhost:5173' })); // This line is removed as per the new_code
+// --- Limitation de la taille des payloads JSON ---
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
-// Ajoute le header CORS pour les fichiers statiques /uploads
-// app.use('/uploads', (req, res, next) => { // This block is removed as per the new_code
-//   res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
-//   next();
-// }, express.static('uploads')); // This block is removed as per the new_code
-
-// Rate limiting (désactivé en développement)
-if (process.env.NODE_ENV === 'production') {
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limite chaque IP à 100 requêtes par fenêtre
+// --- Log global pour chaque requête (dev uniquement) ---
+if (isDevelopment) {
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
   });
-  app.use(limiter);
 }
 
-// Logging
-app.use(morgan('combined'));
-
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Routes
-app.use('/api/auth', require('./routes/auth').router);
-app.use('/api/users', require('./routes/users'));
-app.use('/api/events', require('./routes/events'));
-app.use('/api/photos', require('./routes/photos'));
-app.use('/api/upload', require('./routes/upload'));
-app.use('/uploads/photos', require('express').static(path.join(__dirname, 'uploads/photos')));
-// app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // This line is removed as per the new_code
-
-// Route de diagnostic
-app.get('/api/photos/debug', (req, res) => {
-    const fs = require('fs');
-    const sqlite3 = require('sqlite3').verbose();
-    const uploadsDir = path.join(__dirname, 'uploads/photos');
-    try {
-        const files = fs.readdirSync(uploadsDir);
-        const db = new sqlite3.Database('./database.sqlite');
-        db.all("SELECT * FROM photos", (err, photos) => {
-            if (err) {
-                res.status(500).json({ error: err.message });
-                return;
-            }
-            res.json({
-                filesOnDisk: files,
-                photosInDb: photos,
-                uploadsPath: uploadsDir
-            });
-        });
-        db.close();
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+// --- Sécurité HTTP ---
+if (process.env.NODE_ENV === 'production') {
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"]
+      }
     }
-});
+  }));
+} else {
+  app.use(helmet());
+}
 
-// Sert les images depuis backend/uploads/photos avec header CORS explicite
-app.use('/uploads', express.static(path.join(__dirname, 'uploads/photos'), {
-  setHeaders: (res, path) => {
-    res.set('Access-Control-Allow-Origin', 'http://localhost:5173');
-    res.set('Cross-Origin-Resource-Policy', 'cross-origin'); // Permet le chargement cross-origin des images
+// --- Rate limiting (production uniquement) ---
+if (!isDevelopment) {
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // 100 requêtes par fenêtre
+    message: {
+      error: 'Trop de requêtes, réessayez plus tard',
+      retryAfter: 900
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/', limiter);
+}
+
+// --- Logging HTTP ---
+app.use(morgan(isDevelopment ? 'dev' : 'combined'));
+
+// --- Servir les images avec headers CORS explicites ---
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.set('Cache-Control', 'public, max-age=31536000'); // Cache 1 an pour les images
   }
 }));
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+// --- Middleware statique pour /api/uploads ---
+const uploadsPath = path.join(__dirname, 'uploads');
+app.use('/api/uploads', express.static(uploadsPath, {
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'public, max-age=31536000');
+  }
+}));
+
+// --- Routes API ---
+app.use('/api/upload', uploadRoutes);
+app.use('/api/auth', (await import('./routes/authRoutes.js')).default);
+app.use('/api/events', (await import('./routes/eventRoutes.js')).default);
+app.use('/api/photos', (await import('./routes/photos.js')).default);
+app.use('/api/users', (await import('./routes/userRoutes.js')).default);
+app.use('/api', express.static(path.join(__dirname, 'public')));
+
+// --- Route racine ---
+app.get('/', (req, res) => {
+  res.json({
     message: 'Photoevents API is running',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString()
   });
 });
 
-async function ensureAdminUser() {
-  const uri = process.env.DATABASE_URL;
-  const client = new MongoClient(uri);
-  const dbName = uri.split('/').pop();
-  await client.connect();
-  const db = client.db(dbName);
-  const users = db.collection('users');
-  const admin = await users.findOne({ email: 'admin@photoevents.com' });
-  if (!admin) {
-    await users.insertOne({
-      email: 'admin@photoevents.com',
-      password: await bcrypt.hash('admin123', 12),
-      name: 'Administrateur',
-      role: 'ADMIN',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-    console.log('Utilisateur admin créé : admin@photoevents.com / admin123');
-  }
-  await client.close();
+// --- Routes de debug (DEV uniquement) ---
+if (isDevelopment) {
+  // Diagnostic DB et fichiers
+  app.get('/api/debug/photos', async (req, res) => {
+    const fs = await import('fs');
+    const uploadsDir = path.join(__dirname, 'uploads');
+    try {
+      const files = fs.readdirSync(uploadsDir);
+      const Photo = (await import('./models/Photo.js')).default;
+      const photosData = await Photo.find().limit(10);
+      res.json({
+        filesOnDisk: files,
+        photosInDb: photosData.length,
+        uploadsPath: uploadsDir
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Vérification fichiers
+  app.get('/api/debug/files', (req, res) => {
+    const fs = require('fs');
+    const uploadsDir = path.join(__dirname, 'uploads');
+    const photosDir = path.join(__dirname, 'uploads', 'photos');
+    const uploadsExists = fs.existsSync(uploadsDir);
+    const photosExists = fs.existsSync(photosDir);
+    const files = photosExists ? fs.readdirSync(photosDir) : [];
+    res.json({ uploadsExists, photosExists, filesCount: files.length });
+  });
 }
 
-ensureAdminUser();
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    error: 'Something went wrong!',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+// --- Health check ---
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Photoevents API is running',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+// --- Création automatique de l'utilisateur admin (si absent) ---
+async function ensureAdminUser() {
+  const User = (await import('./models/User.js')).default;
+  try {
+    const admin = await User.findOne({ email: 'admin@photoevents.com' });
+    if (!admin) {
+      await User.create({
+        email: 'admin@photoevents.com',
+        password: await bcrypt.hash('admin123', 12),
+        name: 'Administrateur',
+        role: 'ADMIN',
+        consentFacialRecognition: true, // Consentement par défaut pour l'admin
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      console.log('✅ Utilisateur admin créé : admin@photoevents.com / admin123');
+    } else {
+      console.log('ℹ️ Utilisateur admin existe déjà : admin@photoevents.com');
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors de la création de l\'admin:', error.message);
+  }
+}
+
+// --- Gestion centralisée des erreurs ---
+app.use((err, req, res, next) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Error:', err);
+  }
+  
+  const statusCode = err.statusCode || 500;
+  const message = process.env.NODE_ENV === 'production' 
+    ? 'Une erreur est survenue' 
+    : err.message;
+    
+  res.status(statusCode).json({
+    success: false,
+    message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
 });
 
+// --- 404 handler ---
+app.use('*', (req, res) => {
+  res.status(404).json({ 
+    success: false,
+    message: 'Route non trouvée',
+    path: req.originalUrl,
+    method: req.method
+  });
+});
+
+// --- Lancement du serveur ---
 app.listen(PORT, () => {
   console.log(`🚀 Photoevents Backend running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-}); 
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Créer l'admin après le démarrage du serveur
+  ensureAdminUser();
+});

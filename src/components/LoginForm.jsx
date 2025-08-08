@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 
@@ -32,14 +32,11 @@ const LoginForm = () => {
     try {
       let result;
       if (isLogin) {
-        result = await login({
-          email: formData.email,
-          password: formData.password
-        });
+        result = await login(formData.email.trim(), formData.password);
       } else {
         result = await register({
-          name: formData.name,
-          email: formData.email,
+          name: formData.name.trim(),
+          email: formData.email.trim(),
           password: formData.password
         });
       }
@@ -85,6 +82,8 @@ const LoginForm = () => {
                   placeholder="Nom complet"
                   value={formData.name}
                   onChange={handleInputChange}
+                  minLength={2}
+                  maxLength={50}
                 />
               </div>
             )}
@@ -99,6 +98,7 @@ const LoginForm = () => {
                 placeholder="Adresse email"
                 value={formData.email}
                 onChange={handleInputChange}
+                maxLength={254}
               />
             </div>
 
@@ -112,11 +112,14 @@ const LoginForm = () => {
                 placeholder="Mot de passe"
                 value={formData.password}
                 onChange={handleInputChange}
+                minLength={4}
+                maxLength={128}
               />
               <button
                 type="button"
                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
               >
                 {showPassword ? (
                   <EyeOff className="h-5 w-5 text-gray-400" />
@@ -137,7 +140,7 @@ const LoginForm = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
             >
               {loading ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -151,7 +154,7 @@ const LoginForm = () => {
             <button
               type="button"
               onClick={toggleMode}
-              className="text-indigo-600 hover:text-indigo-500 text-sm font-medium"
+              className="text-indigo-600 hover:text-indigo-500 text-sm font-medium transition-colors duration-200"
             >
               {isLogin ? 'Pas encore de compte ? S\'inscrire' : 'Déjà un compte ? Se connecter'}
             </button>

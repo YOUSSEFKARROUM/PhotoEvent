@@ -2,7 +2,7 @@ const { MongoClient } = require('mongodb');
 const fs = require('fs');
 const path = require('path');
 
-const uri = process.env.DATABASE_URL || 'mongodb://localhost:27017/photoevents';
+const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/photoevents';
 const dbName = uri.split('/').pop() || 'photoevents';
 
 const repair = {

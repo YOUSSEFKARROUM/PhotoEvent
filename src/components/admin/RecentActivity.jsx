@@ -1,7 +1,7 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserPlus, Image, CalendarPlus } from 'lucide-react';
-import { Badge } from '../ui/badge';
+import { Badge } from '@/components/ui/badge';
 
 const RecentActivity = () => {
   const activities = [

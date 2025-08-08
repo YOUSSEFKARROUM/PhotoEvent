@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import UploadProgress from "@/components/photos/UploadProgress";
+import { compressImage } from "@/utils/imageUtils";
 
 export default function Upload() {
   const location = useLocation();
@@ -42,6 +44,8 @@ export default function Upload() {
   const fileInputRef = useRef(null);
   const dragCounter = useRef(0);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [progressStep, setProgressStep] = useState({});
 
   React.useEffect(() => {
     loadeventss();
@@ -66,7 +70,7 @@ export default function Upload() {
   };
 
   const handleDragEnter = (e) => {
-    e.preventsDefault();
+    e.preventDefault();
     e.stopPropagation();
     dragCounter.current++;
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
@@ -75,7 +79,7 @@ export default function Upload() {
   };
 
   const handleDragLeave = (e) => {
-    e.preventsDefault();
+    e.preventDefault();
     e.stopPropagation();
     dragCounter.current--;
     if (dragCounter.current === 0) {
@@ -84,12 +88,12 @@ export default function Upload() {
   };
 
   const handleDragOver = (e) => {
-    e.preventsDefault();
+    e.preventDefault();
     e.stopPropagation();
   };
 
   const handleDrop = (e) => {
-    e.preventsDefault();
+    e.preventDefault();
     e.stopPropagation();
     setIsDragActive(false);
     dragCounter.current = 0;
@@ -114,7 +118,8 @@ export default function Upload() {
       file,
       id: Math.random().toString(36).substr(2, 9),
       preview: URL.createObjectURL(file),
-      status: 'pending'
+      status: 'pending',
+      error: null, // Ajout du champ pour le message d'erreur
     }));
     setSelectedFiles(prev => [...prev, ...newFiles]);
   };
@@ -168,13 +173,13 @@ export default function Upload() {
         const events = await createNewevents();
         eventsId = events.id;
       } catch (error) {
-        alert("Erreur lors de la création de l'événement");
+        setErrorMessage("Erreur lors de la création de l'événement");
         return;
       }
     }
 
     if (!eventsId) {
-      alert("Veuillez sélectionner un événement");
+      setErrorMessage("Veuillez sélectionner un événement");
       return;
     }
 
@@ -183,7 +188,14 @@ export default function Upload() {
     for (const fileData of selectedFiles) {
       try {
         setUploadProgress(prev => ({ ...prev, [fileData.id]: 0 }));
-        
+        setProgressStep(prev => ({ ...prev, [fileData.id]: 0 }));
+        // Compression côté client
+        setProgressStep(prev => ({ ...prev, [fileData.id]: 0 }));
+        setUploadProgress(prev => ({ ...prev, [fileData.id]: 10 }));
+        const compressedBlob = await compressImage(fileData.file);
+        const compressedFile = new File([compressedBlob], fileData.file.name, { type: 'image/jpeg' });
+        setUploadProgress(prev => ({ ...prev, [fileData.id]: 20 }));
+        setProgressStep(prev => ({ ...prev, [fileData.id]: 1 }));
         // Simulate progress
         const progressInterval = setInterval(() => {
           setUploadProgress(prev => ({
@@ -191,15 +203,21 @@ export default function Upload() {
             [fileData.id]: Math.min(90, (prev[fileData.id] || 0) + 10)
           }));
         }, 200);
-
         // Upload file
-        const { file_url } = await UploadFile({ file: fileData.file });
-        
+        const { file_url } = await UploadFile({ file: compressedFile });
+        setProgressStep(prev => ({ ...prev, [fileData.id]: 2 }));
         // Create photo record
-        await Photo.create(fileData.file, eventsId, '');
+        try {
+          const result = await Photo.create(compressedFile, eventsId, '');
+          setErrorMessage(''); // Clear previous errors
+        } catch (error) {
+          console.error('Erreur détaillée:', error);
+          setErrorMessage(error.message || "Erreur lors de l'upload"); // Affiche le message détaillé du backend
+        }
 
         clearInterval(progressInterval);
         setUploadProgress(prev => ({ ...prev, [fileData.id]: 100 }));
+        setProgressStep(prev => ({ ...prev, [fileData.id]: 3 }));
         
         setSelectedFiles(prev =>
           prev.map(f => f.id === fileData.id ? { ...f, status: 'completed' } : f)
@@ -207,8 +225,9 @@ export default function Upload() {
 
       } catch (error) {
         console.error("Erreur lors de l'upload:", error);
+        const errorMessage = error.response?.data?.message || "Une erreur inconnue est survenue";
         setSelectedFiles(prev =>
-          prev.map(f => f.id === fileData.id ? { ...f, status: 'error' } : f)
+          prev.map(f => f.id === fileData.id ? { ...f, status: 'error', error: errorMessage } : f)
         );
       }
     }
@@ -233,6 +252,19 @@ export default function Upload() {
         </p>
       </div>
 
+      {/* Affichage des erreurs */}
+      {errorMessage && (
+        <div className="error-message" style={{
+          color: 'red',
+          backgroundColor: '#fee',
+          padding: '10px',
+          borderRadius: '4px',
+          margin: '10px 0'
+        }}>
+          {errorMessage}
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-2 gap-8">
         {/* events Selection */}
         <Card className="border-0 bg-white/70 backdrop-blur-sm">
@@ -253,8 +285,9 @@ export default function Upload() {
                     value={selectedeventsId}
                     onChange={e => setSelectedeventsId(e.target.value)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    required
                   >
-                    <option value="">-- Sélectionner un événement --</option>
+                    <option value="" disabled>-- Sélectionner un événement --</option>
                     {events.map(event => (
                       <option key={event._id || event.id} value={event._id || event.id}>
                         {event.name} - {event.date ? new Date(event.date).toLocaleDateString() : ''}
@@ -452,11 +485,17 @@ export default function Upload() {
                             {(fileData.file.size / 1024 / 1024).toFixed(2)} MB
                           </p>
                           
+                          {fileData.status === 'error' && fileData.error && (
+                            <p className="text-xs text-red-600 mt-1">
+                              {fileData.error}
+                            </p>
+                          )}
+
                           {uploadProgress[fileData.id] !== undefined && (
                             <div className="mt-1">
-                              <Progress 
-                                value={uploadProgress[fileData.id]} 
-                                className="h-1"
+                              <UploadProgress 
+                                step={progressStep[fileData.id] || 0} 
+                                progress={uploadProgress[fileData.id]} 
                               />
                             </div>
                           )}

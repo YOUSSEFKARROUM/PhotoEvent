@@ -1,0 +1,203 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// --- Sécurité : Vérification obligatoire de JWT_SECRET ---
+if (!process.env.JWT_SECRET) {
+  console.error('ERREUR CRITIQUE : La variable d\'environnement JWT_SECRET n\'est pas définie.');
+  process.exit(1);
+}
+
+// --- Connexion MongoDB centralisée (mongoose) ---
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/photoevents';
+
+const connectWithTimeout = async () => {
+  try {
+    await mongoose.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 3000,
+      socketTimeoutMS: 30000,
+      connectTimeoutMS: 3000,
+    });
+    console.log('✅ Connecté à MongoDB:', mongoUri);
+  } catch (err) {
+    console.error('❌ Erreur de connexion à MongoDB:', err.message);
+    console.log('⚠️  Le serveur démarre sans MongoDB. Certaines fonctionnalités seront limitées.');
+  }
+};
+
+setTimeout(connectWithTimeout, 100);
+
+// --- Sécurité CORS améliorée ---
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production'
+    ? process.env.FRONTEND_URL
+    : ['http://localhost:3000', 'http://localhost:5173'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// --- Limitation de la taille des payloads JSON ---
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+// --- Sécurité HTTP ---
+if (process.env.NODE_ENV === 'production') {
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"]
+      }
+    }
+  }));
+} else {
+  app.use(helmet());
+}
+
+// --- Rate limiting (production uniquement) ---
+if (!isDevelopment) {
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: {
+      error: 'Trop de requêtes, réessayez plus tard',
+      retryAfter: 900
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/', limiter);
+}
+
+// --- Logging HTTP ---
+app.use(morgan(isDevelopment ? 'dev' : 'combined'));
+
+// --- Servir les images avec headers CORS explicites ---
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.set('Cache-Control', 'public, max-age=31536000');
+  }
+}));
+
+// --- Middleware statique pour /api/uploads ---
+const uploadsPath = path.join(__dirname, 'uploads');
+app.use('/api/uploads', express.static(uploadsPath, {
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'public, max-age=31536000');
+  }
+}));
+
+// --- Routes API ---
+app.use('/api/auth', (await import('./routes/authRoutes.js')).default);
+app.use('/api/events', (await import('./routes/eventRoutes.js')).default);
+app.use('/api/photos', (await import('./routes/photos.js')).default);
+app.use('/api/users', (await import('./routes/userRoutes.js')).default);
+app.use('/api', express.static(path.join(__dirname, 'public')));
+
+// --- Route racine ---
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Photoevents API is running',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// --- Health check ---
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Photoevents API is running',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// --- Création automatique de l'utilisateur admin (si absent) ---
+async function ensureAdminUser() {
+  const User = (await import('./models/User.js')).default;
+  try {
+    const admin = await User.findOne({ email: 'admin@photoevents.com' });
+    if (!admin) {
+      await User.create({
+        email: 'admin@photoevents.com',
+        password: await bcrypt.hash('admin123', 12),
+        name: 'Administrateur',
+        role: 'ADMIN',
+        consentFacialRecognition: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      console.log('✅ Utilisateur admin créé : admin@photoevents.com / admin123');
+    } else {
+      console.log('ℹ️ Utilisateur admin existe déjà : admin@photoevents.com');
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors de la création de l\'admin:', error.message);
+  }
+}
+
+// --- Gestion centralisée des erreurs ---
+app.use((err, req, res, next) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Error:', err);
+  }
+
+  const statusCode = err.statusCode || 500;
+  const message = process.env.NODE_ENV === 'production'
+    ? 'Une erreur est survenue'
+    : err.message;
+
+  res.status(statusCode).json({
+    success: false,
+    message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+});
+
+// --- 404 handler ---
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route non trouvée',
+    path: req.originalUrl,
+    method: req.method
+  });
+});
+
+// --- Lancement du serveur ---
+app.listen(PORT, () => {
+  console.log(`🚀 Photoevents Backend running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Créer l'admin après le démarrage du serveur
+  ensureAdminUser();
+}); 

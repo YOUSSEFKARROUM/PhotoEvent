@@ -1,5 +1,5 @@
-import React from 'react';
-import { cn } from '../../lib/utils';
+import React from "react";
+import { cn } from "@/lib/utils";
 
 const Label = React.forwardRef(({ className, ...props }, ref) => (
   <label
@@ -11,7 +11,6 @@ const Label = React.forwardRef(({ className, ...props }, ref) => (
     {...props}
   />
 ));
-
 Label.displayName = "Label";
 
 export { Label }; 

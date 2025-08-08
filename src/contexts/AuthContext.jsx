@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiService } from '../services/api';
+import api from '@/services/api';
+import { getToken, setToken, removeToken, isTokenExpired } from '@/utils/auth';
 
 const AuthContext = createContext();
 
@@ -15,59 +16,111 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const isDevelopment = import.meta.env.DEV;
 
   // Vérifier si l'utilisateur est connecté au chargement
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (token) {
+        // Vérifier si le token est expiré avant de faire la requête
+        if (isTokenExpired(token)) {
+          if (isDevelopment) {
+            console.warn('[AUTH] Token expiré détecté, nettoyage');
+          }
+          removeToken();
+          setLoading(false);
+          return;
+        }
+
         try {
-          const userData = await apiService.getCurrentUser();
-          setUser(userData.user); // Correction ici : extraire la propriété user
+          const response = await api.get('/auth/me');
+          const userData = response.data.user || response.data;
+          // Correction : forcer le champ role en MAJUSCULES
+          if (userData && userData.role) userData.role = userData.role.toUpperCase();
+          setUser(userData);
+          setIsAuthenticated(true);
+          if (isDevelopment) {
+            console.log('[AUTH] Utilisateur authentifié:', userData.email);
+          }
         } catch (error) {
-          console.error('Auth check failed:', error);
-          localStorage.removeItem('token');
+          if (isDevelopment) {
+            console.error('[AUTH] Vérification échouée:', error.message);
+          }
+          removeToken();
+          setUser(null);
+          setIsAuthenticated(false);
         }
       }
       setLoading(false);
     };
 
     checkAuth();
-  }, []);
+  }, [isDevelopment]);
 
-  const login = async (credentials) => {
+  const login = async (email, password) => {
     try {
+      setLoading(true);
       setError(null);
-      const response = await apiService.login(credentials);
-      const { token, user: userData } = response;
       
-      localStorage.setItem('token', token);
+      if (isDevelopment) {
+        console.log('[AUTH] Tentative de connexion avec:', email);
+      }
+      
+      const response = await api.post('/auth/login', { email, password });
+      const { token, user: userData } = response.data;
+      
+      if (!token || !userData) {
+        throw new Error('Réponse invalide du serveur');
+      }
+      
+      // Correction : forcer le champ role en MAJUSCULES
+      if (userData && userData.role) userData.role = userData.role.toUpperCase();
+      
+      setToken(token);
       setUser(userData);
+      setIsAuthenticated(true);
+      
+      if (isDevelopment) {
+        console.log('[AUTH] Connexion réussie pour:', userData.email);
+      }
+      
       return { success: true };
     } catch (error) {
-      setError(error.message);
-      return { success: false, error: error.message };
+      const errorMessage = error.message || 'Erreur de connexion';
+      if (isDevelopment) {
+        console.error('[AUTH] Erreur de connexion:', errorMessage);
+      }
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
     }
   };
 
   const register = async (userData) => {
     try {
       setError(null);
-      const response = await apiService.register(userData);
-      const { token, user: newUser } = response;
+      const response = await api.post('/auth/register', userData);
+      const { token, user: newUser } = response.data;
       
-      localStorage.setItem('token', token);
+      setToken(token);
       setUser(newUser);
+      setIsAuthenticated(true);
       return { success: true };
     } catch (error) {
-      setError(error.message);
-      return { success: false, error: error.message };
+      const errorMessage = error.message || 'Erreur d\'inscription';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    removeToken();
     setUser(null);
+    setIsAuthenticated(false);
     setError(null);
   };
 
@@ -75,6 +128,18 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   };
 
+  const isAdmin = user?.role?.toUpperCase() === 'ADMIN';
+  
+  // Debug logs - seulement quand les valeurs changent
+  useEffect(() => {
+    if (isDevelopment) {
+      console.log('[AUTH DEBUG] User:', user);
+      console.log('[AUTH DEBUG] User role:', user?.role);
+      console.log('[AUTH DEBUG] Is admin:', isAdmin);
+      console.log('[AUTH DEBUG] Is authenticated:', isAuthenticated);
+    }
+  }, [user, isAdmin, isAuthenticated, isDevelopment]);
+  
   const value = {
     user,
     loading,
@@ -83,13 +148,17 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     clearError,
-    isAuthenticated: !!user,
-    isAdmin: user?.role?.toUpperCase() === 'ADMIN',
+    isAuthenticated,
+    isAdmin,
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {error && <div style={{ color: 'red', textAlign: 'center', margin: 8 }}>{error}</div>}
+      {error && (
+        <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50">
+          {error}
+        </div>
+      )}
       {children}
     </AuthContext.Provider>
   );

@@ -18,7 +18,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl } from "@/lib/utils";
 
 export default function Events() {
   const [events, setevents] = useState([]);
@@ -38,6 +38,13 @@ export default function Events() {
   const loadevents = async () => {
     try {
       const eventsList = await Event.list("-date");
+      // DEBUG: Log what frontend receives
+      console.log("=== FRONTEND RECEIVED EVENTS ===");
+      eventsList.forEach(event => {
+        console.log(`Event: ${event.name}`);
+        console.log(`cover_image_url: \"${event.cover_image_url}\"`);
+        console.log("---");
+      });
       setevents(eventsList);
     } catch (error) {
       console.error("Erreur lors du chargement des événements:", error);
@@ -165,7 +172,7 @@ export default function Events() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredevents.map((event, index) => (
             <motion.div
-              key={event.id}
+              key={event.id || event._id || index}
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -173,9 +180,9 @@ export default function Events() {
               <Card className="group overflow-hidden border-0 bg-white/70 backdrop-blur-sm hover:bg-white hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-2">
                 {/* events Image */}
                 <div className="relative h-48 overflow-hidden">
-                  {event.cover_image_url ? (
+                  {event.cover_image_url && event.cover_image_url !== "undefined" && event.cover_image_url !== "" ? (
                     <img
-                      src={event.cover_image_url}
+                      src={`http://localhost:5000/uploads/photos/${event.cover_image_url}`}
                       alt={event.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
@@ -229,7 +236,7 @@ export default function Events() {
 
                   <Button
                     className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl group-hover:shadow-lg transition-all duration-300"
-                    onClick={() => navigate(createPageUrl(`MyPhotos?selected_event=${event.id}`))}
+                    onClick={() => navigate(createPageUrl('MyPhotos'))}
                   >
                     Chercher mes photos
                     <Search className="w-4 h-4 ml-2" />

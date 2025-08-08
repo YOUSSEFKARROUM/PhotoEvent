@@ -4,7 +4,9 @@ class User {
   static async me() {
     // Correction : récupérer l'utilisateur connecté via l'API
     const response = await apiService.getCurrentUser();
-    return response.user;
+    let user = response.user || response;
+    if (user && user.role) user.role = user.role.toUpperCase();
+    return user;
   }
 
   static async list() {
@@ -36,6 +38,11 @@ class User {
 
   static async updateMyUserData(data) {
     return apiService.updateMyProfile(data);
+  }
+
+  static async login(email, password) {
+    // Appelle l'API de login (adapte selon ton apiService)
+    return apiService.login(email, password);
   }
 }
 

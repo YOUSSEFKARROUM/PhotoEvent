@@ -1,16 +1,17 @@
 import React from "react";
+import { cn } from "@/lib/utils";
 
-const Checkbox = React.forwardRef(({ className = '', checked, onChange, ...props }, ref) => (
+const Checkbox = React.forwardRef(({ className, ...props }, ref) => (
   <input
     type="checkbox"
+    className={cn(
+      "peer h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
+      className
+    )}
     ref={ref}
-    className={`h-5 w-5 rounded border border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:outline-none transition disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
-    checked={checked}
-    onChange={onChange}
     {...props}
   />
 ));
-
 Checkbox.displayName = "Checkbox";
 
 export { Checkbox }; 

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
-import { Event, User, Photo } from "../entities/all";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Textarea } from "../components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Event, User, Photo } from "@/entities/all";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   MoreHorizontal, 
   Plus, 
@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { createPageUrl } from "../utils";
+import { createPageUrl } from "@/lib/utils";
 
 export default function Adminevents() {
   const navigate = useNavigate();
@@ -53,7 +53,7 @@ export default function Adminevents() {
     const checkAdmin = async () => {
       try {
         const user = await User.me();
-        if (user.role !== 'admin') {
+        if (user.role?.toUpperCase() !== 'ADMIN') {
           navigate(createPageUrl("Home"));
         } else {
           loadeventss();
@@ -104,7 +104,7 @@ export default function Adminevents() {
   };
 
   const handleCreateevents = async (e) => {
-    e.preventsDefault();
+    e.preventDefault();
     setErrorMsg("");
     try {
       // Création de l'événement sans image d'abord
@@ -180,7 +180,7 @@ export default function Adminevents() {
   };
 
   const handleSubmitevents = async (e) => {
-    e.preventsDefault();
+    e.preventDefault();
     setErrorMsg("");
     try {
       if (editeventsId) {
@@ -196,7 +196,13 @@ export default function Adminevents() {
         });
         // Si une nouvelle image a été sélectionnée, l'uploader et mettre à jour l'événement
         if (imageFile) {
-          const photoRes = await Photo.create(imageFile, editeventsId, 'Image de couverture');
+          const eventId = String(editeventsId);
+          console.log('ID envoyé à Photo.create:', eventId, typeof eventId);
+          if (!eventId) {
+            setErrorMsg("Erreur interne : l'ID de l'événement n'a pas été généré.");
+            return;
+          }
+          const photoRes = await Photo.create(imageFile, eventId, 'Image de couverture');
           if (photoRes && photoRes.photo && photoRes.photo.url) {
             updated = await Event.update(editeventsId, {
               ...updated,
@@ -218,10 +224,17 @@ export default function Adminevents() {
           status: newevents.status
         };
         let created = await Event.create(eventsToSend);
+        console.log('DEBUG Event.create returned:', created);
         if (imageFile) {
-          const photoRes = await Photo.create(imageFile, created.id || created._id, 'Image de couverture');
+          const eventId = String(created.id || created._id);
+          console.log('ID envoyé à Photo.create:', eventId, typeof eventId);
+          if (!eventId) {
+            setErrorMsg("Erreur interne : l'ID de l'événement n'a pas été généré.");
+            return;
+          }
+          const photoRes = await Photo.create(imageFile, eventId, 'Image de couverture');
           if (photoRes && photoRes.photo && photoRes.photo.url) {
-            created = await Event.update(created.id || created._id, {
+            created = await Event.update(eventId, {
               ...created,
               coverImageUrl: photoRes.photo.url
             });

@@ -14,6 +14,8 @@ import {
   RefreshCw
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { compressReferenceImage } from "@/utils/imageUtils";
+import UploadProgress from "./UploadProgress";
 
 export default function ReferencePhotoUpload({ onPhotoUploaded, currentUser }) {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -26,6 +28,8 @@ export default function ReferencePhotoUpload({ onPhotoUploaded, currentUser }) {
   const streamRef = useRef(null);
   const [showCamera, setShowCamera] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [progressStep, setProgressStep] = useState(0);
+  const [slowProcessing, setSlowProcessing] = useState(false);
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -82,43 +86,57 @@ export default function ReferencePhotoUpload({ onPhotoUploaded, currentUser }) {
 
   const uploadReferencePhoto = async () => {
     if (!selectedFile) return;
-
     setIsUploading(true);
     setUploadProgress(0);
+    setProgressStep(0);
     setError(null);
-
+    setSlowProcessing(false);
+    let slowTimeout;
     try {
+      // Compression côté client
+      setUploadProgress(10);
+      setProgressStep(0);
+      const compressedBlob = await compressReferenceImage(selectedFile);
+      const compressedFile = new File([compressedBlob], selectedFile.name, { type: 'image/jpeg' });
+      setUploadProgress(20);
+      setProgressStep(1);
       // Simulate progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => Math.min(90, prev + 10));
       }, 200);
-
-      // Upload file
-      const { file_url } = await UploadFile({ file: selectedFile });
-      
-      // Simulate face encoding processing
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Update user with reference data
-      await User.updateMyUserData({
-        reference_face_data: {
-          reference_image_url: file_url,
-          face_encoding: Array(128).fill(0).map(() => Math.random()) // Simulate face encoding
-        }
+      // Préparer le formData pour l'upload
+      const formData = new FormData();
+      formData.append('photo', compressedFile);
+      // Déclencher un timeout pour feedback lent
+      slowTimeout = setTimeout(() => setSlowProcessing(true), 5000);
+      // Appel à la route backend
+      const response = await fetch('/api/upload/search-by-selfie', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        },
+        body: formData
       });
-
+      clearTimeout(slowTimeout);
+      setProgressStep(2);
+      const result = await response.json();
       clearInterval(progressInterval);
+      if (!response.ok || !result.success) {
+        setError(result.message || "Erreur lors de l'upload. Veuillez réessayer.");
+        setIsUploading(false);
+        return;
+      }
       setUploadProgress(100);
-      
+      setProgressStep(3);
       setTimeout(() => {
-        onPhotoUploaded();
+        onPhotoUploaded && onPhotoUploaded();
       }, 1000);
-
     } catch (error) {
       setError("Erreur lors de l'upload. Veuillez réessayer.");
       console.error("Upload error:", error);
     } finally {
       setIsUploading(false);
+      clearTimeout(slowTimeout);
     }
   };
 
@@ -179,6 +197,15 @@ export default function ReferencePhotoUpload({ onPhotoUploaded, currentUser }) {
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Affichage du feedback si traitement lent */}
+          {slowProcessing && (
+            <Alert className="mt-2" variant="warning">
+              <AlertDescription>
+                Le traitement prend plus de temps que prévu. Merci de patienter, cela peut durer jusqu'à 30 secondes selon la charge du serveur.
+              </AlertDescription>
             </Alert>
           )}
 
@@ -328,6 +355,9 @@ export default function ReferencePhotoUpload({ onPhotoUploaded, currentUser }) {
           )}
         </CardContent>
       </Card>
+      {isUploading && (
+        <UploadProgress step={progressStep} progress={uploadProgress} />
+      )}
     </motion.div>
   );
 } 

@@ -61,7 +61,7 @@ export default function EventSelector({ events, onEventSelected }) {
             <div className="grid md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
               {events.map((event, index) => (
                 <motion.div
-                  key={event.id}
+                  key={event._id || event.id || index}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
@@ -103,7 +103,7 @@ export default function EventSelector({ events, onEventSelected }) {
                       )}
 
                       <Button
-                        onClick={() => onEventSelected(event.id)}
+                        onClick={() => onEventSelected(event._id || event.id)}
                         className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 group-hover:shadow-md transition-all duration-300"
                       >
                         Sélectionner cet événement

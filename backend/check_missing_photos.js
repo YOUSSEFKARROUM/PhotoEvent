@@ -1,36 +1,43 @@
 // Script Node.js pour vérifier les fichiers photos manquants
-const { MongoClient } = require('mongodb');
+const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-const MONGO_URL = process.env.DATABASE_URL;
-const PHOTOS_DIR = path.join(__dirname, 'uploads/photos');
+const Photo = require('./models/Photo');
 
-async function main() {
-  const client = new MongoClient(MONGO_URL);
-  await client.connect();
-  const dbName = MONGO_URL.split('/').pop();
-  const db = client.db(dbName);
-  const photos = await db.collection('photos').find({}).toArray();
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/photoevents';
+const uploadsDir = path.join(__dirname, 'uploads', 'photos');
 
-  const missing = [];
+async function checkMissingPhotos() {
+  await mongoose.connect(mongoUri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+
+  const photos = await Photo.find({});
+  let missing = [];
+
   for (const photo of photos) {
-    const filename = photo.url || photo.filename;
+    const filename = photo.filename || photo.url;
     if (!filename) continue;
-    const filePath = path.join(PHOTOS_DIR, filename);
+    const filePath = path.join(uploadsDir, filename);
     if (!fs.existsSync(filePath)) {
       missing.push(filename);
     }
   }
 
   if (missing.length === 0) {
-    console.log('✅ Tous les fichiers photos sont présents dans uploads/photos/');
+    console.log('✅ Tous les fichiers référencés existent sur le disque.');
   } else {
-    console.log('❌ Fichiers manquants dans uploads/photos/ :');
+    console.log('❌ Fichiers manquants :');
     missing.forEach(f => console.log(' -', f));
   }
-  await client.close();
+
+  await mongoose.disconnect();
 }
 
-main().catch(e => { console.error(e); process.exit(1); }); 
+checkMissingPhotos().catch(err => {
+  console.error('Erreur lors de la vérification des fichiers photos :', err);
+  process.exit(1);
+}); 

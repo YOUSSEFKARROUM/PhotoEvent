@@ -1,6 +1,8 @@
+import { getToken } from '../utils/auth';
+
 class Event {
   static async list() {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     // Ajout d'un paramètre unique pour éviter le cache
     const url = `/api/events?_=${Date.now()}`;
     const res = await fetch(url, {
@@ -14,7 +16,9 @@ class Event {
       const error = await res.json();
       throw new Error(error.error || 'Erreur lors de la récupération des événements');
     }
-    return await res.json();
+    const data = await res.json();
+    // Extraire la propriété events si elle existe, sinon retourner data directement
+    return data.events || data;
   }
 
   static async getById(id) {
@@ -38,7 +42,7 @@ class Event {
       coverImageUrl: event.coverImageUrl || undefined,
       status: event.status // Ajout du statut
     };
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const res = await fetch('/api/events', {
       method: 'POST',
       headers: {
@@ -52,28 +56,46 @@ class Event {
       throw new Error(error.error || 'Erreur lors de la création de l\'événement');
     }
     const data = await res.json();
-    return data.events;
+    // Force _id to string if present
+    if (data && data._id && typeof data._id !== 'string') {
+      data._id = data._id.toString();
+    }
+    // Retourne l'objet événement complet avec _id
+    return data;
   }
 
-  static async update(eventId, eventData) {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`/api/events/${eventId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
-      body: JSON.stringify({ ...eventData, status: eventData.status }) // Ajout du statut
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.error || 'Erreur lors de la mise à jour de l\'événement');
+  static async update(id, eventData) {
+    try {
+      // Remove _id from the data before sending
+      const { _id, ...dataWithoutId } = eventData;
+      const response = await fetch(`/api/events/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
+        body: JSON.stringify(dataWithoutId)
+      });
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (e) {
+        responseData = { error: 'Réponse non JSON', details: e.message };
+      }
+      if (!response.ok) {
+        console.error(`[FRONTEND] Erreur ${response.status}:`, responseData);
+        throw new Error(responseData.details || responseData.error || 'Erreur inconnue');
+      }
+      console.log(`[FRONTEND] Succès mise à jour:`, responseData);
+      return responseData;
+    } catch (error) {
+      console.error('[FRONTEND] Erreur réseau ou parsing:', error);
+      throw new Error(`Erreur de communication: ${error.message}`);
     }
-    return await res.json();
   }
 
   static async delete(eventId) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const res = await fetch(`/api/events/${eventId}`, {
       method: 'DELETE',
       headers: {

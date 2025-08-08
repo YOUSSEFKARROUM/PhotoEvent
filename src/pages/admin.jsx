@@ -24,8 +24,8 @@ import RecentActivity from "../components/admin/RecentActivity";
 
 export default function Admin() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ users: 0, eventss: 0, photos: 0 });
-  const [eventssData, seteventssData] = useState([]);
+  const [stats, setStats] = useState({ users: 0, events: 0, photos: 0 });
+  const [eventsData, setEventsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -47,13 +47,13 @@ export default function Admin() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [users, eventss, photos] = await Promise.all([
+      const [users, events, photos] = await Promise.all([
         User.list(),
         Event.list(),
         Photo.list()
       ]);
-      setStats({ users: users.length, eventss: eventss.length, photos: photos.length });
-      seteventssData(eventss);
+      setStats({ users: users.length, events: events.length, photos: photos.length });
+      setEventsData(events);
     } catch (error) {
       console.error("Erreur de chargement des données admin:", error);
     } finally {
@@ -62,7 +62,7 @@ export default function Admin() {
   };
 
   const adminSections = [
-    { title: "Gérer les Événements", icon: Camera, url: createPageUrl("Admineventss"), description: "Créer, modifier et superviser tous les événements." },
+    { title: "Gérer les Événements", icon: Camera, url: createPageUrl("Adminevents"), description: "Créer, modifier et superviser tous les événements." },
     { title: "Gérer les Utilisateurs", icon: Users, url: createPageUrl("AdminUsers"), description: "Consulter la liste des inscrits et gérer les rôles." },
     { title: "Bibliothèque de Photos", icon: ImageIcon, url: createPageUrl("AdminPhotos"), description: "Modérer et consulter toutes les photos uploadées." }
   ];
@@ -88,7 +88,7 @@ export default function Admin() {
       {/* Stats Cards */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Utilisateurs" value={stats.users} icon={Users} color="from-blue-500 to-cyan-500" isLoading={isLoading} />
-        <StatCard title="Événements" value={stats.eventss} icon={Camera} color="from-purple-500 to-pink-500" isLoading={isLoading} />
+        <StatCard title="Événements" value={stats.events} icon={Camera} color="from-purple-500 to-pink-500" isLoading={isLoading} />
         <StatCard title="Photos" value={stats.photos} icon={ImageIcon} color="from-green-500 to-emerald-500" isLoading={isLoading} />
         <StatCard title="Stockage (simulé)" value="25.6 GB" icon={HardDrive} color="from-orange-500 to-red-500" isLoading={isLoading} />
       </div>
@@ -104,7 +104,7 @@ export default function Admin() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <EventsChart eventss={eventssData} isLoading={isLoading} />
+            <EventsChart events={eventsData} isLoading={isLoading} />
           </CardContent>
         </Card>
 

@@ -9,6 +9,7 @@ export default function PhotoCard({ photo, isFavorite, onFavorite, onDownload, o
           src={photo.url}
           alt={photo.name}
           className="w-full h-64 object-cover"
+          onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
         />
         <button
           className="absolute top-3 right-3 bg-white/80 rounded-full p-2 shadow"

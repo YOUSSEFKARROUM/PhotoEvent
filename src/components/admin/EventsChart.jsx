@@ -1,6 +1,6 @@
 import React from 'react';
-import { Card, CardContent } from '../ui/card';
-import { Skeleton } from '../ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const eventsChart = ({ events, isLoading }) => {
   if (isLoading) {
@@ -12,10 +12,11 @@ const eventsChart = ({ events, isLoading }) => {
     );
   }
 
-  // Simulation d'un graphique simple
-  const upcomingCount = events.filter(e => e.status === 'upcoming').length;
-  const activeCount = events.filter(e => e.status === 'active').length;
-  const completedCount = events.filter(e => e.status === 'completed').length;
+  // Correction : s'assurer que events est un tableau
+  const safeEvents = Array.isArray(events) ? events : [];
+  const upcomingCount = safeEvents.filter(e => e.status === 'upcoming').length;
+  const activeCount = safeEvents.filter(e => e.status === 'active').length;
+  const completedCount = safeEvents.filter(e => e.status === 'completed').length;
 
   return (
     <div className="space-y-4">

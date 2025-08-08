@@ -31,7 +31,6 @@ export default function ConsentForm({ onConsentGiven }) {
     console.log('=== DEBUG CONSENT FORM ===');
     console.log('Token:', token ? token.substring(0, 20) + '...' : 'No token');
     console.log('User:', user);
-    console.log('API Base URL:', apiService.API_BASE_URL || 'Not defined');
   }, []);
 
   const handleConsentChange = (key, checked) => {
@@ -61,7 +60,11 @@ export default function ConsentForm({ onConsentGiven }) {
         localStorage.removeItem('token');
         window.location.href = '/login';
       } else {
-        alert(`Erreur lors de l'enregistrement du consentement : ${error.message}`);
+        if (error.message.includes('Session expirée') || error.message.includes('accès interdit')) {
+          alert("Votre session a expiré ou vous n'avez plus accès à cette action. Veuillez vous reconnecter.");
+        } else {
+          alert(`Erreur lors de l'enregistrement du consentement : ${error.message}`);
+        }
       }
     } finally {
       setIsSubmitting(false);

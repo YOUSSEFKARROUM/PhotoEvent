@@ -1,12 +1,66 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { MongoClient, ObjectId } = require('mongodb');
-const { authenticateToken } = require('./auth');
+const jwt = require('jsonwebtoken');
+
+// Middleware d'authentification JWT
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ 
+      success: false,
+      message: 'Token manquant' 
+    });
+  }
+  
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ 
+      success: false,
+      message: 'Format de token invalide' 
+    });
+  }
+  
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      let errorMessage = 'Token invalide';
+      if (err.name === 'TokenExpiredError') {
+        errorMessage = 'Token expiré';
+      } else if (err.name === 'JsonWebTokenError') {
+        errorMessage = 'Token malformé';
+      }
+      
+      return res.status(401).json({ 
+        success: false,
+        message: errorMessage, 
+        details: err.message,
+        code: err.name 
+      });
+    }
+    
+    req.user = user;
+    next();
+  });
+};
 
 const router = express.Router();
-const uri = process.env.DATABASE_URL;
-const client = new MongoClient(uri);
-const dbName = uri.split('/').pop();
+
+// Helper function to get database connection
+const getDatabaseConnection = () => {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error('MONGODB_URI environment variable is not set');
+  }
+  const dbName = uri.split('/').pop();
+  return { uri, dbName };
+};
+
+const connectToDatabase = async () => {
+  const { uri, dbName } = getDatabaseConnection();
+  const client = new MongoClient(uri);
+  await client.connect();
+  return { client, db: client.db(dbName) };
+};
 
 // Validation pour la création/modification d'événement
 const validateevents = [
@@ -15,41 +69,20 @@ const validateevents = [
   body('photographerEmail').isEmail().withMessage('Email photographe invalide')
 ];
 
-// Obtenir tous les événements
+// Routes pour les événements
 router.get('/', async (req, res) => {
   try {
-    const { status, search } = req.query;
-    
-    let where = {};
-    
-    if (status) {
-      where.status = status.toLowerCase();
-    }
-    
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { location: { contains: search, mode: 'insensitive' } }
-      ];
-    }
-
-    let eventss = await client.db(dbName).collection('events').find(where).toArray();
-
-    // Adapter les champs pour le frontend
-    eventss = eventss.map(events => ({
-      ...events,
-      id: events._id,
-      cover_image_url: events.coverImageUrl,
-      photographer_email: events.photographerEmail,
-      status: events.status ? events.status.toLowerCase() : 'upcoming'
-    }));
-
-    res.json(eventss);
-
+    const Event = require('../models/Event');
+    const events = await Event.find().sort({ createdAt: -1 });
+    res.json({
+      success: true,
+      events
+    });
   } catch (error) {
-    console.error('Erreur lors de la récupération des événements:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des événements' });
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des événements'
+    });
   }
 });
 
@@ -140,7 +173,8 @@ router.put('/:id', authenticateToken, validateevents, async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, description, date, location, photographerEmail, coverImageUrl, status } = req.body;
+    // Remove _id from the update data
+    const { _id, ...updateData } = req.body;
 
     // Vérifier si l'événement existe
     const existingevents = await client.db(dbName).collection('events').findOne({ _id: new ObjectId(id) });
@@ -150,24 +184,20 @@ router.put('/:id', authenticateToken, validateevents, async (req, res) => {
     }
 
     // Vérifier si le photographe existe (si modifié)
-    if (photographerEmail && photographerEmail !== existingevents.photographerEmail) {
-      const photographer = await client.db(dbName).collection('users').findOne({ email: photographerEmail });
-
+    if (updateData.photographerEmail && updateData.photographerEmail !== existingevents.photographerEmail) {
+      const photographer = await client.db(dbName).collection('users').findOne({ email: updateData.photographerEmail });
       if (!photographer) {
         return res.status(400).json({ error: 'Photographe non trouvé' });
       }
     }
 
     const updateFields = {
-      name,
-      description,
-      date: date ? new Date(date) : existingevents.date,
-      location,
-      photographerEmail,
+      ...updateData,
+      date: updateData.date ? new Date(updateData.date) : existingevents.date,
       updatedAt: new Date()
     };
-    if (typeof coverImageUrl !== 'undefined') updateFields.coverImageUrl = coverImageUrl;
-    if (typeof status !== 'undefined') updateFields.status = status.toLowerCase();
+    if (typeof updateData.coverImageUrl !== 'undefined') updateFields.coverImageUrl = updateData.coverImageUrl;
+    if (typeof updateData.status !== 'undefined') updateFields.status = updateData.status.toLowerCase();
 
     const events = await client.db(dbName).collection('events').findOneAndUpdate(
       { _id: new ObjectId(id) },

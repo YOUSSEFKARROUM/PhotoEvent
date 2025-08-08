@@ -1,17 +1,17 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import Layout from './layout.jsx';
-import LoginForm from './components/LoginForm';
-import ProtectedRoute from './components/ProtectedRoute';
-import Home from './pages/home';
-import Events from "./pages/events";
-import MyPhotos from './pages/myphotos';
-import Upload from './pages/upload';
-import Admin from './pages/admin';
-import Adminevents from './pages/adminevents';
-import AdminUsers from './pages/adminusers';
-import AdminPhotos from './pages/adminphotos';
-import EventPhotos from "./pages/eventphotos";
+import Layout from '@/layout.jsx';
+import LoginForm from '@/components/LoginForm';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Home from '@/pages/home';
+import Events from "@/pages/events";
+import MyPhotos from '@/pages/myphotos';
+import Upload from '@/pages/upload';
+import Admin from '@/pages/admin';
+import Adminevents from '@/pages/adminevents';
+import AdminUsers from '@/pages/adminusers';
+import AdminPhotos from '@/pages/adminphotos';
+import EventPhotos from "@/pages/eventphotos";
 
 function App() {
   return (
@@ -35,7 +35,7 @@ function App() {
             <Admin />
           </ProtectedRoute>
         } />
-        <Route path="/admin/eventss" element={
+        <Route path="/admin/events" element={
           <ProtectedRoute requireAdmin>
             <Adminevents />
           </ProtectedRoute>

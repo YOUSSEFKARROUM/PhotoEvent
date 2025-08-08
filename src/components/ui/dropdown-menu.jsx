@@ -1,45 +1,50 @@
-import React, { useState, useRef, useEffect } from 'react';
+// src/components/ui/dropdown-menu.jsx
+import React from "react";
+import { cn } from "@/lib/utils";
 
-const DropdownMenu = ({ children }) => {
-  return <div className="relative inline-block">{children}</div>;
-};
-
-const DropdownMenuTrigger = React.forwardRef(({ children, ...props }, ref) => (
-  <button ref={ref} {...props}>
-    {children}
-  </button>
-));
-DropdownMenuTrigger.displayName = 'DropdownMenuTrigger';
-
-const DropdownMenuContent = ({ children, open, onClose, className = '' }) => {
-  const ref = useRef();
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
-        onClose?.();
-      }
-    };
-    document.addeventsListener('mousedown', handleClick);
-    return () => document.removeeventsListener('mousedown', handleClick);
-  }, [open, onClose]);
-  if (!open) return null;
-  return (
-    <div ref={ref} className={`absolute right-0 mt-2 w-48 bg-white border rounded shadow-lg z-50 ${className}`}>
-      {children}
-    </div>
-  );
-};
-
-const DropdownMenuItem = ({ children, onClick, className = '' }) => (
+const DropdownMenu = React.forwardRef(({ className, ...props }, ref) => (
   <div
-    className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${className}`}
-    onClick={onClick}
-    tabIndex={0}
-    role="menuitem"
-  >
-    {children}
-  </div>
-);
+    ref={ref}
+    className={cn("relative inline-block text-left", className)}
+    {...props}
+  />
+));
+DropdownMenu.displayName = "DropdownMenu";
+
+const DropdownMenuTrigger = React.forwardRef(({ className, ...props }, ref) => (
+  <button
+    ref={ref}
+    className={cn(
+      "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      className
+    )}
+    {...props}
+  />
+));
+DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
+
+const DropdownMenuContent = React.forwardRef(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+      className
+    )}
+    {...props}
+  />
+));
+DropdownMenuContent.displayName = "DropdownMenuContent";
+
+const DropdownMenuItem = React.forwardRef(({ className, ...props }, ref) => (
+  <button
+    ref={ref}
+    className={cn(
+      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      className
+    )}
+    {...props}
+  />
+));
+DropdownMenuItem.displayName = "DropdownMenuItem";
 
 export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem }; 

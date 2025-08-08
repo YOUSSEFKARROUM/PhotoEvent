@@ -1,12 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider, createBrowserRouter } from 'react-router-dom'
-import { AuthProvider } from './contexts/AuthContext'
-import App from './App.jsx'
-import './index.css'
+import { AuthProvider } from '@/contexts/AuthContext'
+import App from '@/App.jsx'
+import '@/index.css'
 
 // Masquer le message React DevTools en production
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'development') {
+if (typeof window !== 'undefined' && import.meta.env.PROD) {
   const originalWarn = console.warn;
   console.warn = function (...args) {
     if (

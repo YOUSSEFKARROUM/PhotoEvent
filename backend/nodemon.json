@@ -1,0 +1,39 @@
+{
+  "watch": [
+    "server.js",
+    "app.js",
+    "routes/",
+    "controllers/",
+    "models/",
+    "middleware/",
+    "services/"
+  ],
+  "ignore": [
+    "node_modules/",
+    "uploads/",
+    "*.log",
+    "tests/",
+    "coverage/",
+    "dist/",
+    "build/",
+    ".git/",
+    "*.test.js",
+    "*.spec.js",
+    "debug_*.js",
+    "fix_*.js",
+    "repair.js",
+    "check_*.js",
+    "create_*.js",
+    "reset_*.js",
+    "rename_*.js",
+    "list_*.js"
+  ],
+  "ext": "js,json",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": 1000,
+  "verbose": false,
+  "legacyWatch": false,
+  "polling": false
+} 

@@ -49,7 +49,7 @@ export default function AdminPhotos() {
     const checkAdminAndLoad = async () => {
       try {
         const user = await User.me();
-        if (user.role !== 'admin') {
+        if (user.role?.toUpperCase() !== 'ADMIN') {
           navigate(createPageUrl("Home"));
         } else {
           loadData();
@@ -133,47 +133,51 @@ export default function AdminPhotos() {
           <h1 className="text-3xl font-bold text-slate-900">Bibliothèque de Photos</h1>
           <p className="text-slate-600">Gérez toutes les photos uploadées sur la plateforme.</p>
         </div>
-        <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm font-medium">
-          <ImageIcon className="w-4 h-4" />
-          <span>{filteredPhotos.length} photo{filteredPhotos.length !== 1 ? 's' : ''}</span>
-        </div>
+        {(isLoading || filteredPhotos.length > 0 || searchTerm || selectedevents !== "all") && (
+          <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm font-medium">
+            <ImageIcon className="w-4 h-4" />
+            <span>{filteredPhotos.length} photo{filteredPhotos.length !== 1 ? 's' : ''}</span>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
-      <Card className="border-0 bg-white/70 backdrop-blur-sm shadow-lg mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-blue-600" />
-            Filtres
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <Input
-                placeholder="Rechercher par nom de fichier..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+      {isLoading || filteredPhotos.length > 0 || searchTerm || selectedevents !== "all" ? (
+        <Card className="border-0 bg-white/70 backdrop-blur-sm shadow-lg mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="w-5 h-5 text-blue-600" />
+              Filtres
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Input
+                  placeholder="Rechercher par nom de fichier..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={selectedevents} onValueChange={setSelectedevents}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filtrer par événement" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les événements</SelectItem>
+                  {events.map(event => (
+                    <SelectItem key={event.id || event._id || event.name} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={selectedevents} onValueChange={setSelectedevents}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filtrer par événement" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les événements</SelectItem>
-                {events.map(event => (
-                  <SelectItem key={event.id || event._id || event.name} value={event.id}>
-                    {event.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Photos Grid */}
       {isLoading ? (
@@ -189,15 +193,17 @@ export default function AdminPhotos() {
           ))}
         </div>
       ) : filteredPhotos.length === 0 ? (
-        <div className="text-center py-16">
-          <ImageIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+        <div className="flex flex-col items-center justify-center py-16 w-full border-4 border-red-500">
+          <ImageIcon className="w-16 h-16 text-slate-400 mb-4" />
           <h3 className="text-xl font-semibold text-slate-700 mb-2">
-            {searchTerm || selectedevents !== "all" ? "Aucune photo trouvée" : "Aucune photo disponible"}
+            {isLoading ? "Chargement..." : (searchTerm || selectedevents !== "all" ? "Aucune photo trouvée" : "Aucune photo disponible")}
           </h3>
           <p className="text-slate-500">
-            {searchTerm || selectedevents !== "all" 
-              ? "Essayez avec d'autres critères de recherche." 
-              : "Les photos apparaîtront ici une fois uploadées."}
+            {isLoading
+              ? "Chargement des photos, veuillez patienter."
+              : (searchTerm || selectedevents !== "all" 
+                ? "Essayez avec d'autres critères de recherche."
+                : "Les photos apparaîtront ici une fois uploadées.")}
           </p>
         </div>
       ) : (
@@ -215,9 +221,10 @@ export default function AdminPhotos() {
                   {/* Photo */}
                   <div className="relative aspect-square overflow-hidden">
                     <img
-                      src={photo.thumbnail_url || photo.image_url}
-                      alt={photo.filename}
+                      src={photo.thumbnail_url || photo.image_url || photo.url || '/placeholder.jpg'}
+                      alt={photo.filename || photo.name || 'Photo'}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={e => { e.target.onerror = null; e.target.src = '/placeholder.jpg'; }}
                     />
                     
                     {/* Overlay with quick actions */}

@@ -1,14 +1,14 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { createPageUrl } from "./utils";
+import { createPageUrl } from "@/lib/utils";
 import { Camera, Image, Users, Home, Menu, X, Shield, LogOut } from "lucide-react";
-import { Button } from "./components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
-} from "./components/ui/sheet";
-import { useAuth } from "./contexts/AuthContext";
+} from "@/components/ui/sheet";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
@@ -35,6 +35,11 @@ export default function Layout({ children, currentPageName }) {
         title: "Mes Photos",
         url: createPageUrl("MyPhotos"),
         icon: Image,
+      },
+      {
+        title: "Profil",
+        url: createPageUrl("Profile"),
+        icon: Users,
       }
     );
     if (isAdmin) {

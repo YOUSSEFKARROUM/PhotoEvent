@@ -7,7 +7,7 @@ const http = require('http');
 require('dotenv').config();
 
 // Configuration
-const MONGO_URL = process.env.DATABASE_URL;
+const MONGO_URL = process.env.MONGODB_URI;
 const PHOTOS_DIR = path.join(__dirname, 'uploads/photos');
 const BACKUP_DIR = path.join(__dirname, 'backup_images');
 

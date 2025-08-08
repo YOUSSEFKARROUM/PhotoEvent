@@ -56,4 +56,26 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Masque tout overlay injecté par l'extension plasmo-csui */
+plasmo-csui {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+/* Styles personnalisés pour les sections IA et normales */
+.ai-results-section {
+  border: 2px solid #10b981;
+  border-radius: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+}
+
+.normal-photos-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
 } 

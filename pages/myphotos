@@ -1,0 +1,256 @@
+import React, { useState } from "react";
+import { User } from "@/entities/User";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  Camera, 
+  Upload, 
+  Search, 
+  Download, 
+  Heart,
+  Shield,
+  AlertCircle,
+  CheckCircle,
+  User as UserIcon 
+} from "lucide-react";
+import { motion } from "framer-motion";
+
+import ReferencePhotoUpload from "../components/photos/photos/referencephotoupload";
+import PhotoGallery from "../components/photos/photos/photogallery";
+import ConsentForm from "../components/photos/photos/consentform";
+
+export default function MyPhotos() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [foundPhotos, setFoundPhotos] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasConsent, setHasConsent] = useState(false);
+  const [hasReferencePhoto, setHasReferencePhoto] = useState(false);
+
+  React.useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const user = await User.me();
+      setCurrentUser(user);
+      setHasConsent(user.consent_given || false);
+      setHasReferencePhoto(!!user.reference_face_data?.reference_image_url);
+    } catch (error) {
+      console.error("Erreur lors du chargement des données utilisateur:", error);
+    }
+  };
+
+  const handleConsentGiven = () => {
+    setHasConsent(true);
+    loadUserData();
+  };
+
+  const handleReferencePhotoUploaded = () => {
+    setHasReferencePhoto(true);
+    loadUserData();
+  };
+
+  const simulatePhotoSearch = async () => {
+    setIsSearching(true);
+    // Simulation d'une recherche IA
+    setTimeout(() => {
+      setFoundPhotos([
+        {
+          id: "1",
+          url: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=400",
+          thumbnail_url: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=200",
+          event_name: "Mariage Sarah & Tom",
+          confidence: 0.95,
+          date: "2024-01-15"
+        },
+        {
+          id: "2", 
+          url: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=400",
+          thumbnail_url: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=200",
+          event_name: "Anniversaire Emma",
+          confidence: 0.92,
+          date: "2024-01-10"
+        },
+        {
+          id: "3",
+          url: "https://images.unsplash.com/photo-1464207687429-7505649dae38?w=400", 
+          thumbnail_url: "https://images.unsplash.com/photo-1464207687429-7505649dae38?w=200",
+          event_name: "Soirée d'entreprise",
+          confidence: 0.89,
+          date: "2024-01-08"
+        }
+      ]);
+      setIsSearching(false);
+    }, 2000);
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center">
+          <UserIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-slate-900 mb-4">Connexion requise</h2>
+          <p className="text-slate-600 mb-6">
+            Vous devez être connecté pour rechercher vos photos.
+          </p>
+          <Button onClick={() => User.login()} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+            Se connecter
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Header */}
+      <div className="text-center mb-12">
+        <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
+          Mes Photos
+        </h1>
+        <p className="text-xl text-slate-600 max-w-3xl mx-auto">
+          Retrouvez toutes vos photos d'événements grâce à notre reconnaissance faciale IA.
+          Uploadez une photo de référence pour commencer.
+        </p>
+      </div>
+
+      {/* Progress Steps */}
+      <div className="flex justify-center mb-12">
+        <div className="flex items-center space-x-4">
+          {/* Step 1: Consent */}
+          <div className="flex items-center">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              hasConsent ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-600'
+            }`}>
+              {hasConsent ? <CheckCircle className="w-6 h-6" /> : <Shield className="w-6 h-6" />}
+            </div>
+            <span className={`ml-2 text-sm font-medium ${hasConsent ? 'text-green-600' : 'text-slate-600'}`}>
+              Consentement
+            </span>
+          </div>
+
+          <div className={`w-8 h-0.5 ${hasConsent ? 'bg-green-500' : 'bg-slate-200'}`}></div>
+
+          {/* Step 2: Reference Photo */}
+          <div className="flex items-center">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              hasReferencePhoto ? 'bg-green-500 text-white' : hasConsent ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-600'
+            }`}>
+              {hasReferencePhoto ? <CheckCircle className="w-6 h-6" /> : <Camera className="w-6 h-6" />}
+            </div>
+            <span className={`ml-2 text-sm font-medium ${
+              hasReferencePhoto ? 'text-green-600' : hasConsent ? 'text-blue-600' : 'text-slate-600'
+            }`}>
+              Photo de référence
+            </span>
+          </div>
+
+          <div className={`w-8 h-0.5 ${hasReferencePhoto ? 'bg-green-500' : 'bg-slate-200'}`}></div>
+
+          {/* Step 3: Search */}
+          <div className="flex items-center">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              hasReferencePhoto ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-600'
+            }`}>
+              <Search className="w-6 h-6" />
+            </div>
+            <span className={`ml-2 text-sm font-medium ${hasReferencePhoto ? 'text-blue-600' : 'text-slate-600'}`}>
+              Recherche
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Content based on user state */}
+      <div className="space-y-8">
+        {/* Step 1: Consent */}
+        {!hasConsent && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <ConsentForm onConsentGiven={handleConsentGiven} />
+          </motion.div>
+        )}
+
+        {/* Step 2: Reference Photo Upload */}
+        {hasConsent && !hasReferencePhoto && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            <ReferencePhotoUpload 
+              onPhotoUploaded={handleReferencePhotoUploaded}
+              currentUser={currentUser}
+            />
+          </motion.div>
+        )}
+
+        {/* Step 3: Search and Results */}
+        {hasConsent && hasReferencePhoto && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="space-y-8"
+          >
+            {/* Search Section */}
+            <Card className="border-0 bg-white/70 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Search className="w-6 h-6 text-blue-600" />
+                  Rechercher mes photos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center space-y-4">
+                  <p className="text-slate-600">
+                    Votre photo de référence est enregistrée. Cliquez sur le bouton ci-dessous 
+                    pour lancer la recherche dans tous les événements.
+                  </p>
+                  
+                  <Button
+                    onClick={simulatePhotoSearch}
+                    disabled={isSearching}
+                    size="lg"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 rounded-xl"
+                  >
+                    {isSearching ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        Recherche en cours...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-5 h-5 mr-2" />
+                        Lancer la recherche IA
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Results */}
+            {foundPhotos.length > 0 && (
+              <PhotoGallery photos={foundPhotos} />
+            )}
+
+            {/* Privacy Notice */}
+            <Alert className="border-blue-200 bg-blue-50">
+              <Shield className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800">
+                <strong>Confidentialité garantie :</strong> Vos données biométriques sont chiffrées 
+                et ne sont jamais partagées. Vous pouvez supprimer votre profil à tout moment.
+              </AlertDescription>
+            </Alert>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}

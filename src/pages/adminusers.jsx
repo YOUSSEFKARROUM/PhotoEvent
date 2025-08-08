@@ -53,10 +53,10 @@ export default function AdminUsers() {
   };
 
   const getRoleColor = (role) => {
-    switch (role) {
-      case 'admin':
+    switch (role?.toUpperCase()) {
+      case 'ADMIN':
         return 'bg-red-100 text-red-800';
-      case 'user':
+      case 'USER':
         return 'bg-blue-100 text-blue-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -64,10 +64,10 @@ export default function AdminUsers() {
   };
 
   const getRoleText = (role) => {
-    switch (role) {
-      case 'admin':
+    switch (role?.toUpperCase()) {
+      case 'ADMIN':
         return 'Administrateur';
-      case 'user':
+      case 'USER':
         return 'Utilisateur';
       default:
         return role;
@@ -78,6 +78,31 @@ export default function AdminUsers() {
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Suppression d'utilisateur
+  const handleDeleteUser = async (userId) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ?")) {
+      try {
+        await User.delete(userId);
+        loadUsers();
+      } catch (error) {
+        alert("Erreur lors de la suppression de l'utilisateur.");
+      }
+    }
+  };
+
+  // Edition d'utilisateur (changement de rôle simple)
+  const handleEditUser = async (user) => {
+    const newRole = prompt("Nouveau rôle pour l'utilisateur (ADMIN ou USER) :", user.role);
+    if (newRole && newRole !== user.role) {
+      try {
+        await User.update(user.id, { role: newRole });
+        loadUsers();
+      } catch (error) {
+        alert("Erreur lors de la modification du rôle.");
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -139,16 +164,16 @@ export default function AdminUsers() {
                 
                 <div className="flex items-center space-x-3">
                   <Badge className={getRoleColor(user.role)}>
-                    {user.role === 'admin' && <ShieldCheck className="w-3 h-3 mr-1" />}
+                    {user.role?.toUpperCase() === 'ADMIN' && <ShieldCheck className="w-3 h-3 mr-1" />}
                     {getRoleText(user.role)}
                   </Badge>
                   
                   <div className="flex space-x-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
                       <Edit className="w-4 h-4" />
                     </Button>
-                    {user.role !== 'admin' && (
-                      <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+                    {user.role?.toUpperCase() !== 'ADMIN' && (
+                      <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteUser(user.id)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     )}
