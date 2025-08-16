@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import User from "../entities/User";
+import { useAuth } from "@/contexts/AuthContext";
 import { Event } from "../entities/Event";
 import Photo from "../entities/Photo";
+import User from "../entities/User";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { createPageUrl } from "../utils";
@@ -24,25 +25,23 @@ import RecentActivity from "../components/admin/RecentActivity";
 
 export default function Admin() {
   const navigate = useNavigate();
+  const { isAuthenticated, isAdmin, loading } = useAuth();
   const [stats, setStats] = useState({ users: 0, events: 0, photos: 0 });
   const [eventsData, setEventsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const checkAdmin = async () => {
-      try {
-        const user = await User.me();
-        if (!user || user.role.toUpperCase() !== 'ADMIN') {
-          navigate(createPageUrl("Home"));
-        } else {
-          loadData();
-        }
-      } catch (error) {
-        navigate(createPageUrl("Home"));
-      }
-    };
-    checkAdmin();
-  }, [navigate]);
+    if (loading) return;
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (!isAdmin) {
+      navigate(createPageUrl("Home"));
+      return;
+    }
+    loadData();
+  }, [navigate, isAuthenticated, isAdmin, loading]);
 
   const loadData = async () => {
     setIsLoading(true);

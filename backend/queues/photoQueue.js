@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
+import config from '../config.js';
 
 /**
  * Configuration Redis pour les queues
@@ -9,52 +10,93 @@ const redisConfig = {
   port: process.env.REDIS_PORT || 6379,
   password: process.env.REDIS_PASSWORD,
   retryDelayOnFailover: 100,
-  maxRetriesPerRequest: 3,
-  lazyConnect: true
+  maxRetriesPerRequest: 1,
+  lazyConnect: true,
+  // Désactive les reconnexions agressives pour éviter les spams de logs
+  retryStrategy: () => null,
 };
 
-// Connexion Redis
-const redis = new Redis(redisConfig);
+const disableQueues = !config.redis.enabled || process.env.DISABLE_REDIS === 'true' || process.env.QUEUE_MODE === 'memory';
 
-redis.on('connect', () => {
-  console.log('✅ Connecté à Redis pour les queues');
-});
+let redis = null;
+let redisAvailable = false;
+let photoQueue = null;
+let cleanupQueue = null;
 
-redis.on('error', (error) => {
-  console.error('❌ Erreur Redis:', error.message);
-});
+if (!disableQueues) {
+  const tmpRedis = new Redis(redisConfig);
+  let loggedError = false;
+  tmpRedis.on('error', (error) => {
+    if (!loggedError) {
+      console.error('❌ Erreur Redis:', error.message);
+      loggedError = true;
+    }
+  });
 
-/**
- * Queue pour le traitement des photos
- */
-const photoQueue = new Queue('photo-processing', {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000
-    },
-    removeOnComplete: 100,
-    removeOnFail: 50
+  try {
+    await tmpRedis.ping();
+    redisAvailable = true;
+    redis = tmpRedis;
+    console.log('✅ Connecté à Redis pour les queues');
+  } catch (err) {
+    // Redis indisponible, basculement en mode sans queue
+    try { tmpRedis.disconnect(); } catch {}
+    console.warn('⚠️ Redis indisponible - les queues BullMQ sont désactivées (mode fallback).');
   }
-});
+} else {
+  console.log('ℹ️ Queues désactivées par configuration (DISABLE_REDIS/QUEUE_MODE).');
+}
 
-/**
- * Queue pour le nettoyage automatique
- */
-const cleanupQueue = new Queue('cleanup-tasks', {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 2,
-    backoff: {
-      type: 'fixed',
-      delay: 5000
+if (redisAvailable) {
+  /**
+   * Queue pour le traitement des photos
+   */
+  photoQueue = new Queue('photo-processing', {
+    connection: redis,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000
+      },
+      removeOnComplete: 100,
+      removeOnFail: 50
+    }
+  });
+
+  /**
+   * Queue pour le nettoyage automatique
+   */
+  cleanupQueue = new Queue('cleanup-tasks', {
+    connection: redis,
+    defaultJobOptions: {
+      attempts: 2,
+      backoff: {
+        type: 'fixed',
+        delay: 5000
+      },
+      removeOnComplete: 50,
+      removeOnFail: 20
+    }
+  });
+} else {
+  // Implémentations no-op pour éviter les erreurs quand Redis n'est pas disponible
+  const createNoopQueue = (name) => ({
+    add: async (jobName) => {
+      console.log(`⏭️ ${name}/${jobName} ignoré (Redis désactivé)`);
+      return { id: `noop-${Date.now()}`, name: jobName };
     },
-    removeOnComplete: 50,
-    removeOnFail: 20
-  }
-});
+    getWaiting: async () => [],
+    getActive: async () => [],
+    getCompleted: async () => [],
+    getFailed: async () => [],
+    obliterate: async () => undefined,
+    close: async () => undefined,
+  });
+
+  photoQueue = createNoopQueue('photo-processing');
+  cleanupQueue = createNoopQueue('cleanup-tasks');
+}
 
 /**
  * Ajoute une tâche de traitement de photo à la queue
@@ -78,7 +120,8 @@ export const addPhotoProcessingJob = async (photoData) => {
     return job;
   } catch (error) {
     console.error('❌ Erreur lors de l\'ajout du job de traitement:', error.message);
-    throw error;
+    // Ne pas bloquer l'upload si Redis est indisponible
+    return { id: `fallback-${Date.now()}`, error: error.message };
   }
 };
 
@@ -103,7 +146,7 @@ export const addCleanupJob = async (cleanupData) => {
     return job;
   } catch (error) {
     console.error('❌ Erreur lors de l\'ajout du job de nettoyage:', error.message);
-    throw error;
+    return { id: `fallback-${Date.now()}`, error: error.message };
   }
 };
 
@@ -159,7 +202,7 @@ export const closeQueues = async () => {
     await Promise.all([
       photoQueue.close(),
       cleanupQueue.close(),
-      redis.quit()
+      redisAvailable && redis ? redis.quit() : Promise.resolve()
     ]);
     console.log('🔌 Connexions Redis fermées');
   } catch (error) {
@@ -181,4 +224,4 @@ process.on('SIGTERM', async () => {
 });
 
 export default photoQueue;
-export { cleanupQueue, redis }; 
+export { cleanupQueue, redis, redisAvailable };

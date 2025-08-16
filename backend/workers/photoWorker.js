@@ -23,20 +23,37 @@ const redisConfig = {
   port: process.env.REDIS_PORT || 6379,
   password: process.env.REDIS_PASSWORD,
   retryDelayOnFailover: 100,
-  maxRetriesPerRequest: 3,
-  lazyConnect: true
+  maxRetriesPerRequest: 1,
+  lazyConnect: true,
+  retryStrategy: () => null,
 };
 
-// Connexion Redis
-const redis = new Redis(redisConfig);
+const disableQueues = process.env.DISABLE_REDIS === 'true' || process.env.QUEUE_MODE === 'memory';
 
-redis.on('connect', () => {
-  console.log('✅ Worker connecté à Redis');
-});
+let redis = null;
+let redisAvailable = false;
 
-redis.on('error', (error) => {
-  console.error('❌ Erreur Redis dans le worker:', error.message);
-});
+if (!disableQueues) {
+  const tmpRedis = new Redis(redisConfig);
+  let loggedError = false;
+  tmpRedis.on('error', (error) => {
+    if (!loggedError) {
+      console.error('❌ Erreur Redis dans le worker:', error.message);
+      loggedError = true;
+    }
+  });
+  try {
+    await tmpRedis.ping();
+    redisAvailable = true;
+    redis = tmpRedis;
+    console.log('✅ Worker connecté à Redis');
+  } catch (err) {
+    try { tmpRedis.disconnect(); } catch {}
+    console.warn('⚠️ Redis indisponible - arrêt du worker (rien à traiter sans Redis).');
+  }
+} else {
+  console.log('ℹ️ Worker désactivé (DISABLE_REDIS/QUEUE_MODE).');
+}
 
 /**
  * Connexion MongoDB
@@ -185,6 +202,10 @@ const cleanupFiles = async (job) => {
 /**
  * Worker principal pour le traitement des photos
  */
+if (!redisAvailable) {
+  process.exit(0);
+}
+
 const photoWorker = new Worker('photo-processing', async (job) => {
   console.log(`📸 Traitement job ${job.id}: ${job.name}`);
 

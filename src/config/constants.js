@@ -58,3 +58,46 @@ export const COLORS = {
   WARNING: 'from-yellow-500 to-orange-500',
   DANGER: 'from-red-500 to-pink-500'
 };
+
+// Configuration des constantes de l'application
+
+// Timeouts et délais
+export const TIMEOUTS = {
+  API_REQUEST: 30000, // 30 secondes
+  TOKEN_REFRESH_WARNING: 600, // 10 minutes avant expiration
+  TOKEN_SAFETY_MARGIN: 300, // 5 minutes de marge de sécurité
+  UPLOAD_TIMEOUT: 60000, // 1 minute pour l'upload
+};
+
+// Messages d'erreur
+export const ERROR_MESSAGES = {
+  SESSION_EXPIRED: 'Session expirée. Veuillez vous reconnecter.',
+  TOKEN_EXPIRED: 'Token expiré. Veuillez vous reconnecter.',
+  AUTHENTICATION_FAILED: 'Échec de l\'authentification. Veuillez réessayer.',
+  NETWORK_ERROR: 'Erreur de réseau. Vérifiez votre connexion.',
+  UPLOAD_FAILED: 'Échec de l\'upload. Veuillez réessayer.',
+  PERMISSION_DENIED: 'Permission refusée. Contactez l\'administrateur.',
+};
+
+// Codes d'erreur HTTP
+export const HTTP_STATUS = {
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  INTERNAL_SERVER_ERROR: 500,
+};
+
+// Configuration des tokens
+export const TOKEN_CONFIG = {
+  STORAGE_KEY: 'token',
+  BACKUP_STORAGE_KEY: 'authToken',
+  REFRESH_THRESHOLD: 600, // 10 minutes avant expiration
+  SAFETY_MARGIN: 300, // 5 minutes de marge
+};
+
+// Configuration des retry
+export const RETRY_CONFIG = {
+  MAX_ATTEMPTS: 3,
+  DELAY_BETWEEN_ATTEMPTS: 1000, // 1 seconde
+  BACKOFF_MULTIPLIER: 2,
+};

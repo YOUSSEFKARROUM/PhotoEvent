@@ -4,11 +4,12 @@ import apiService from '@/services/api.js';
 export const UploadFile = async (file, eventId, metadata = {}) => {
   try {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('photo', file); // Changé de 'file' à 'photo'
     formData.append('eventId', eventId);
     formData.append('metadata', JSON.stringify(metadata));
 
-    const response = await apiService.post('/upload', formData, {
+    // Removed the /api prefix since it's already in the baseURL
+    const response = await apiService.post('/upload/photo', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -16,6 +17,7 @@ export const UploadFile = async (file, eventId, metadata = {}) => {
 
     return response.data;
   } catch (error) {
+    console.error('Erreur UploadFile:', error);
     throw new Error(error.message || 'Erreur lors de l\'upload');
   }
 };

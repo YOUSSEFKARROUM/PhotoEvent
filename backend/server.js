@@ -9,8 +9,7 @@
  * - Documentation et logs explicites
  */
 
-import dotenv from 'dotenv';
-dotenv.config();
+
 
 import express from 'express';
 import cors from 'cors';
@@ -22,22 +21,22 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import uploadRoutes from './routes/uploadRoutes.js';
+import config from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const isDevelopment = process.env.NODE_ENV === 'development';
+const PORT = config.server.port;
+const isDevelopment = config.server.env === 'development';
 
 // --- Sécurité : Vérification obligatoire de JWT_SECRET ---
-if (!process.env.JWT_SECRET) {
-  console.error('ERREUR CRITIQUE : La variable d\'environnement JWT_SECRET n\'est pas définie. Ajoutez-la dans un fichier .env à la racine du dossier backend.');
-  process.exit(1);
+if (!config.jwt.secret || config.jwt.secret === 'votre_cle_secrete_jwt_tres_longue_et_complexe_ici_par_defaut') {
+  console.warn('⚠️  ATTENTION : JWT_SECRET utilise la valeur par défaut. En production, définissez une clé secrète unique dans le fichier .env');
 }
 
 // --- Connexion MongoDB centralisée (mongoose) ---
-const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/photoevents';
+const mongoUri = config.mongodb.uri;
 
 // Timeout pour la connexion MongoDB
 const connectWithTimeout = async () => {
@@ -62,7 +61,7 @@ setTimeout(connectWithTimeout, 100);
 
 // --- Sécurité CORS améliorée ---
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
+  origin: config.server.env === 'production' 
     ? process.env.FRONTEND_URL 
     : ['http://localhost:3000', 'http://localhost:5173'],
   credentials: true,
@@ -84,7 +83,7 @@ if (isDevelopment) {
 }
 
 // --- Sécurité HTTP ---
-if (process.env.NODE_ENV === 'production') {
+if (config.server.env === 'production') {
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -100,7 +99,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // --- Rate limiting (production uniquement) ---
-if (!isDevelopment) {
+if (config.server.env === 'production') {
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // 100 requêtes par fenêtre
@@ -115,7 +114,7 @@ if (!isDevelopment) {
 }
 
 // --- Logging HTTP ---
-app.use(morgan(isDevelopment ? 'dev' : 'combined'));
+app.use(morgan(config.server.env === 'development' ? 'dev' : 'combined'));
 
 // --- Servir les images avec headers CORS explicites ---
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
@@ -153,7 +152,7 @@ app.get('/', (req, res) => {
 });
 
 // --- Routes de debug (DEV uniquement) ---
-if (isDevelopment) {
+if (config.server.env === 'development') {
   // Diagnostic DB et fichiers
   app.get('/api/debug/photos', async (req, res) => {
     const fs = await import('fs');
@@ -192,7 +191,7 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: config.server.env
   });
 });
 
@@ -222,19 +221,19 @@ async function ensureAdminUser() {
 
 // --- Gestion centralisée des erreurs ---
 app.use((err, req, res, next) => {
-  if (process.env.NODE_ENV !== 'production') {
+  if (config.server.env !== 'production') {
     console.error('Error:', err);
   }
   
   const statusCode = err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
+  const message = config.server.env === 'production' 
     ? 'Une erreur est survenue' 
     : err.message;
     
   res.status(statusCode).json({
     success: false,
     message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    ...(config.server.env !== 'production' && { stack: err.stack })
   });
 });
 
@@ -252,7 +251,9 @@ app.use('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Photoevents Backend running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌍 Environment: ${config.server.env}`);
+  console.log(`🔑 JWT Secret: ${config.jwt.secret.substring(0, 20)}...`);
+  console.log(`📁 Uploads: ${config.upload.path}`);
   
   // Créer l'admin après le démarrage du serveur
   ensureAdminUser();

@@ -7,8 +7,10 @@ import { Checkbox } from "@/components/ui/checkbox.jsx";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Shield, Info, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ConsentForm({ onConsentGiven }) {
+  const { user, isAuthenticated } = useAuth();
   const [consents, setConsents] = useState({
     faceRecognition: false,
     dataProcessing: false,
@@ -20,18 +22,19 @@ export default function ConsentForm({ onConsentGiven }) {
   // Debug: vérifier l'authentification au montage
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
     setDebugInfo({
       hasToken: !!token,
       tokenLength: token ? token.length : 0,
       hasUser: !!user,
+      isAuthenticated,
       token: token ? token.substring(0, 20) + '...' : 'No token'
     });
     
     console.log('=== DEBUG CONSENT FORM ===');
     console.log('Token:', token ? token.substring(0, 20) + '...' : 'No token');
     console.log('User:', user);
-  }, []);
+    console.log('Is Authenticated:', isAuthenticated);
+  }, [user, isAuthenticated]);
 
   const handleConsentChange = (key, checked) => {
     setConsents(prev => ({ ...prev, [key]: checked }));
@@ -41,12 +44,17 @@ export default function ConsentForm({ onConsentGiven }) {
 
   const handleSubmit = async () => {
     if (!allConsentsGiven) return;
+    
+    if (!isAuthenticated || !user) {
+      alert("Vous devez être connecté pour donner votre consentement.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       await User.updateMyUserData({
-        consent_given: true,
-        consent_date: new Date().toISOString()
+        consentFacialRecognition: true,
+        consentFacialRecognitionDate: new Date().toISOString()
       });
       onConsentGiven(); // Toujours passer à l'étape suivante après succès
     } catch (error) {
@@ -96,6 +104,7 @@ export default function ConsentForm({ onConsentGiven }) {
               Token: {debugInfo.hasToken ? '✅ Present' : '❌ Missing'}<br/>
               Token Length: {debugInfo.tokenLength}<br/>
               User: {debugInfo.hasUser ? '✅ Present' : '❌ Missing'}<br/>
+              Is Authenticated: {debugInfo.isAuthenticated ? '✅ Yes' : '❌ No'}<br/>
               Token Preview: {debugInfo.token}
             </div>
           )}

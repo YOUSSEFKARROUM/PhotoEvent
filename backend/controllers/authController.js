@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import rateLimit from 'express-rate-limit';
+import config from '../config.js';
 
 /**
  * Auth Controller - Version refactorisée avec sécurité renforcée
@@ -107,7 +108,7 @@ const register = async (req, res) => {
     // Générer le token JWT
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
+      config.jwt.secret,
       { expiresIn: '7d' }
     );
 
@@ -190,7 +191,7 @@ const login = async (req, res) => {
       iat: Math.floor(Date.now() / 1000)
     };
     
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { 
+    const token = jwt.sign(payload, config.jwt.secret, { 
       expiresIn: tokenExpiry,
       issuer: 'photoevents-api',
       audience: 'photoevents-client'

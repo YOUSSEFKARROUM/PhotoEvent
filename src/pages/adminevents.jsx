@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { Event, User, Photo } from "@/entities/all";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ import { createPageUrl } from "@/lib/utils";
 export default function Adminevents() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated, isAdmin, loading } = useAuth();
   const [eventss, seteventss] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -50,20 +52,17 @@ export default function Adminevents() {
   }, [location.search]);
 
   useEffect(() => {
-    const checkAdmin = async () => {
-      try {
-        const user = await User.me();
-        if (user.role?.toUpperCase() !== 'ADMIN') {
-          navigate(createPageUrl("Home"));
-        } else {
-          loadeventss();
-        }
-      } catch (error) {
-        navigate(createPageUrl("Home"));
-      }
-    };
-    checkAdmin();
-  }, [navigate]);
+    if (loading) return;
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (!isAdmin) {
+      navigate(createPageUrl("Home"));
+      return;
+    }
+    loadeventss();
+  }, [navigate, isAuthenticated, isAdmin, loading]);
 
   const loadeventss = async () => {
     setIsLoading(true);

@@ -147,7 +147,7 @@ router.put('/me', authenticateToken, async (req, res) => {
   console.log('req.user:', req.user);
   try {
     console.log('userId utilisé pour la requête MongoDB:', req.user.userId);
-    const { name, email, reference_face_data, consent_given, consent_date } = req.body;
+    const { name, email, reference_face_data, consentFacialRecognition, consentFacialRecognitionDate } = req.body;
     await client.connect();
     const db = client.db(dbName);
     const usersCollection = db.collection('users');
@@ -157,8 +157,8 @@ router.put('/me', authenticateToken, async (req, res) => {
     if (name) updateFields.name = name;
     if (email) updateFields.email = email;
     if (reference_face_data) updateFields.reference_face_data = reference_face_data;
-    if (typeof consent_given !== 'undefined') updateFields.consent_given = consent_given;
-    if (consent_date) updateFields.consent_date = consent_date;
+    if (typeof consentFacialRecognition !== 'undefined') updateFields.consentFacialRecognition = consentFacialRecognition;
+    if (consentFacialRecognitionDate) updateFields.consentFacialRecognitionDate = new Date(consentFacialRecognitionDate);
     updateFields.updatedAt = new Date();
 
     const user = await usersCollection.findOneAndUpdate(

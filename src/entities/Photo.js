@@ -1,4 +1,6 @@
 // Photo.js
+import { getToken, isTokenExpired } from '@/utils/auth';
+
 class Photo {
   static async create(file, eventId, description = '') {
     // Validation des paramètres
@@ -8,12 +10,22 @@ class Photo {
     if (!eventId) {
       throw new Error('EventId manquant');
     }
-    // Récupérer le token JWT stocké
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token') || getCookie('token');
+    
+    // Vérifier l'authentification
+    const token = getToken();
+    if (!token) {
+      throw new Error('Session expirée. Veuillez vous reconnecter.');
+    }
+    
+    if (isTokenExpired(token)) {
+      throw new Error('Token expiré. Veuillez vous reconnecter.');
+    }
+    
     const formData = new FormData();
     formData.append('photo', file);
     formData.append('eventId', eventId);
     formData.append('description', description);
+    
     // Debug : log FormData et token
     console.log('FormData créé:', {
       fileName: file.name,
@@ -26,44 +38,31 @@ class Photo {
     console.log('Headers envoyés:', {
       'Authorization': token ? `Bearer ${token.substring(0, 20)}...` : 'ABSENT'
     });
-    function getCookie(name) {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop().split(';').shift();
-      return null;
-    }
+    
     try {
       const response = await fetch('/api/upload/photo', {
         method: 'POST',
-        body: formData,
         headers: {
-          ...(token && { 'Authorization': `Bearer ${token}` })
-          // NE PAS ajouter Content-Type pour FormData
+          'Authorization': `Bearer ${token}`
         },
+        body: formData
       });
-      console.log('Réponse serveur:', response.status, response.statusText);
-      const data = await response.json();
+
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        
+        // Gestion spécifique des erreurs d'authentification
         if (response.status === 401) {
-          window.location.href = '/login';
-          throw new Error('Session expirée, veuillez vous reconnecter');
+          throw new Error('Session expirée. Veuillez vous reconnecter.');
         }
-        // Créer un message d'erreur détaillé
-        const errorMessage = data.message || 'Erreur inconnue';
-        const errorDetails = data.details || '';
-        const fullError = errorDetails ? `${errorMessage} - ${errorDetails}` : errorMessage;
-        console.error('Erreur backend complète:', data);
-        throw new Error(fullError);
+        
+        throw new Error(errorData.message || `Erreur ${response.status}: ${response.statusText}`);
       }
-      return data;
+
+      const result = await response.json();
+      return result;
     } catch (error) {
-      // Si c'est une erreur réseau ou de parsing JSON
-      if (!error.message.includes('reconnaissance faciale')) {
-        console.error('Erreur réseau ou parsing:', error);
-        throw new Error(`Erreur de communication: ${error.message}`);
-      }
-      // Re-throw l'erreur de reconnaissance faciale
-      console.error('Erreur dans Photo.create:', error);
+      console.error('Erreur lors de la création de la photo:', error);
       throw error;
     }
   }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import User from "../entities/User";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -20,25 +21,23 @@ import { createPageUrl } from "../utils";
 
 export default function AdminUsers() {
   const navigate = useNavigate();
+  const { isAuthenticated, isAdmin, loading } = useAuth();
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    const checkAdmin = async () => {
-      try {
-        const user = await User.me();
-        if (!user || user.role.toUpperCase() !== 'ADMIN') {
-          navigate(createPageUrl("Home"));
-        } else {
-          loadUsers();
-        }
-      } catch (error) {
-        navigate(createPageUrl("Home"));
-      }
-    };
-    checkAdmin();
-  }, [navigate]);
+    if (loading) return;
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (!isAdmin) {
+      navigate(createPageUrl("Home"));
+      return;
+    }
+    loadUsers();
+  }, [navigate, isAuthenticated, isAdmin, loading]);
 
   const loadUsers = async () => {
     setIsLoading(true);

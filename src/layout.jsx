@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { createPageUrl } from "@/lib/utils";
+import { createPageUrl } from "@/utils";
 import { Camera, Image, Users, Home, Menu, X, Shield, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {

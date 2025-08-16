@@ -250,6 +250,8 @@ class UploadController {
         
         try {
             console.log('🚀 Début upload:', performanceLog);
+            console.log('📁 Fichier reçu:', req.file);
+            console.log('📝 Body reçu:', req.body);
 
             // Étape 1: Validation
             const t1 = Date.now();
@@ -267,6 +269,7 @@ class UploadController {
             const { description, tags, eventId } = req.body;
             if (!req.file) {
                 performanceLog.steps.validation = Date.now() - t1;
+                console.error('❌ Aucun fichier reçu');
                 return res.status(400).json({
                     success: false,
                     message: 'Aucun fichier fourni',
@@ -275,6 +278,7 @@ class UploadController {
             }
             if (!req.body.eventId) {
                 performanceLog.steps.validation = Date.now() - t1;
+                console.error('❌ eventId manquant dans le body:', req.body);
                 return res.status(400).json({
                     success: false,
                     message: "eventId manquant",
@@ -427,10 +431,27 @@ class UploadController {
      */
     searchBySelfie = async (req, res) => {
         try {
+            console.log('🔍 Début recherche par selfie');
+            console.log('User:', req.user);
+            console.log('File:', req.file);
+            
             // Vérification du consentement RGPD
-            const user = await uploadService.checkUserConsent(req.user.userId);
+            let user;
+            try {
+                user = await uploadService.checkUserConsent(req.user.userId);
+                console.log('✅ Consentement vérifié pour:', user.email);
+            } catch (consentError) {
+                console.error('❌ Erreur consentement:', consentError.message);
+                return res.status(403).json({
+                    success: false,
+                    message: 'Consentement requis',
+                    details: consentError.message,
+                    suggestion: 'Veuillez accepter la reconnaissance faciale dans vos paramètres'
+                });
+            }
             
             if (!req.file) {
+                console.error('❌ Aucun fichier reçu');
                 return res.status(400).json({
                     success: false,
                     message: 'Aucune image fournie'
@@ -438,6 +459,7 @@ class UploadController {
             }
 
             const tempFilePath = req.file.path;
+            console.log('📁 Fichier temporaire:', tempFilePath);
             
             try {
                 // Validation du fichier
@@ -454,8 +476,10 @@ class UploadController {
                 // Traitement avec DeepFace
                 let faceData;
                 if (this.deepFaceAvailable) {
+                    console.log('🤖 Traitement avec DeepFace');
                     faceData = await this.faceService.processUploadedImage(tempFilePath, req.user.userId);
                 } else {
+                    console.log('⚠️ Mode fallback - génération encodage factice');
                     faceData = await this.faceService.generateFallbackEncoding(tempFilePath);
                 }
 
@@ -500,6 +524,8 @@ class UploadController {
                 // Nettoyage du fichier temporaire
                 await deleteFileIfExists(tempFilePath);
 
+                console.log(`✅ Recherche terminée - ${results.length} résultats trouvés`);
+
                 res.json({
                     success: true,
                     message: 'Recherche terminée',
@@ -512,6 +538,7 @@ class UploadController {
                 });
 
             } catch (error) {
+                console.error('❌ Erreur traitement:', error);
                 await deleteFileIfExists(tempFilePath);
                 throw error;
             }

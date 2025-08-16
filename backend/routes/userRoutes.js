@@ -33,6 +33,58 @@ router.get('/', authenticateTokenMiddleware, async (req, res) => {
   }
 });
 
+// Route pour récupérer le profil de l'utilisateur connecté
+router.get('/me', authenticateTokenMiddleware, async (req, res) => {
+  try {
+    const User = (await import('../models/User.js')).default;
+    const user = await User.findById(req.user.userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+    res.json({ user });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur lors de la récupération du profil' });
+  }
+});
+
+// Route pour mettre à jour le profil de l'utilisateur connecté
+router.put('/me', authenticateTokenMiddleware, async (req, res) => {
+  try {
+    const User = (await import('../models/User.js')).default;
+    const { consentFacialRecognition, consentFacialRecognitionDate, ...otherFields } = req.body;
+    
+    const updateFields = {};
+    if (typeof consentFacialRecognition !== 'undefined') {
+      updateFields.consentFacialRecognition = consentFacialRecognition;
+    }
+    if (consentFacialRecognitionDate) {
+      updateFields.consentFacialRecognitionDate = new Date(consentFacialRecognitionDate);
+    }
+    if (Object.keys(otherFields).length > 0) {
+      Object.assign(updateFields, otherFields);
+    }
+    updateFields.updatedAt = new Date();
+
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      { $set: updateFields },
+      { new: true }
+    ).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+    
+    res.json({
+      message: 'Profil utilisateur modifié avec succès',
+      user
+    });
+  } catch (error) {
+    console.error('Erreur dans PUT /api/users/me:', error);
+    res.status(400).json({ message: 'Erreur lors de la mise à jour de l\'utilisateur' });
+  }
+});
+
 router.get('/:id', authenticateTokenMiddleware, async (req, res) => {
   try {
     const User = (await import('../models/User.js')).default;

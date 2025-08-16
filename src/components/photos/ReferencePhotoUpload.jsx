@@ -1,20 +1,12 @@
-import React, { useState, useRef } from "react";
-import User from "@/entities/User.js";
-import { UploadFile } from "@/integrations/Core";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
-import { 
-  Camera, 
-  Upload, 
-  CheckCircle, 
-  AlertCircle, 
-  User as UserIcon,
-  RefreshCw
-} from "lucide-react";
+import React, { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Camera, Upload, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { compressReferenceImage } from '@/utils/imageUtils';
+import { getToken, isTokenExpired } from '@/utils/auth';
 import { motion } from "framer-motion";
-import { compressReferenceImage } from "@/utils/imageUtils";
 import UploadProgress from "./UploadProgress";
 
 export default function ReferencePhotoUpload({ onPhotoUploaded, currentUser }) {
@@ -86,6 +78,19 @@ export default function ReferencePhotoUpload({ onPhotoUploaded, currentUser }) {
 
   const uploadReferencePhoto = async () => {
     if (!selectedFile) return;
+    
+    // Vérifier l'authentification avant l'upload
+    const token = getToken();
+    if (!token) {
+      setError("Session expirée. Veuillez vous reconnecter.");
+      return;
+    }
+    
+    if (isTokenExpired(token)) {
+      setError("Token expiré. Veuillez vous reconnecter.");
+      return;
+    }
+    
     setIsUploading(true);
     setUploadProgress(0);
     setProgressStep(0);
@@ -113,7 +118,7 @@ export default function ReferencePhotoUpload({ onPhotoUploaded, currentUser }) {
       const response = await fetch('/api/upload/search-by-selfie', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: formData
       });
@@ -122,7 +127,12 @@ export default function ReferencePhotoUpload({ onPhotoUploaded, currentUser }) {
       const result = await response.json();
       clearInterval(progressInterval);
       if (!response.ok || !result.success) {
-        setError(result.message || "Erreur lors de l'upload. Veuillez réessayer.");
+        // Gestion spécifique des erreurs d'authentification
+        if (response.status === 401) {
+          setError("Session expirée. Veuillez vous reconnecter.");
+        } else {
+          setError(result.message || "Erreur lors de l'upload. Veuillez réessayer.");
+        }
         setIsUploading(false);
         return;
       }

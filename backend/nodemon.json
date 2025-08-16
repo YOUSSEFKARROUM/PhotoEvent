@@ -6,7 +6,9 @@
     "controllers/",
     "models/",
     "middleware/",
-    "services/"
+    "services/",
+    "queues/",
+    "workers/"
   ],
   "ignore": [
     "node_modules/",

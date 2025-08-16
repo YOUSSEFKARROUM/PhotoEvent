@@ -32,6 +32,17 @@ router.post('/search',
 );
 
 /**
+ * @route POST /api/upload/search-by-selfie
+ * @desc Recherche par selfie (alias pour compatibilité)
+ * @access Private
+ */
+router.post('/search-by-selfie',
+  authenticateToken,
+  upload.single('photo'),
+  uploadController.searchBySelfie
+);
+
+/**
  * @route GET /api/upload/stats
  * @desc Statistiques d'upload
  * @access Admin

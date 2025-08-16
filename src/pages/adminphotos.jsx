@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Photo, Event, User } from "@/entities/all";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export default function AdminPhotos() {
   const navigate = useNavigate();
+  const { isAuthenticated, isAdmin, loading } = useAuth();
   const [photos, setPhotos] = useState([]);
   const [events, setevents] = useState([]);
   const [filteredPhotos, setFilteredPhotos] = useState([]);
@@ -46,20 +48,17 @@ export default function AdminPhotos() {
   const [isPhotoDialogOpen, setIsPhotoDialogOpen] = useState(false);
 
   useEffect(() => {
-    const checkAdminAndLoad = async () => {
-      try {
-        const user = await User.me();
-        if (user.role?.toUpperCase() !== 'ADMIN') {
-          navigate(createPageUrl("Home"));
-        } else {
-          loadData();
-        }
-      } catch (error) {
-        navigate(createPageUrl("Home"));
-      }
-    };
-    checkAdminAndLoad();
-  }, [navigate]);
+    if (loading) return;
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (!isAdmin) {
+      navigate(createPageUrl("Home"));
+      return;
+    }
+    loadData();
+  }, [navigate, isAuthenticated, isAdmin, loading]);
 
   useEffect(() => {
     filterPhotos();

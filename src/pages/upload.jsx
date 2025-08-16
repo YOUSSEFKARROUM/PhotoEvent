@@ -24,6 +24,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import UploadProgress from "@/components/photos/UploadProgress";
 import { compressImage } from "@/utils/imageUtils";
+import { getToken, isTokenExpired, checkAuthBeforeOperation } from "@/utils/auth";
+import { DebugPanel } from "@/components/ui/debug-panel";
 
 export default function Upload() {
   const location = useLocation();
@@ -165,6 +167,14 @@ export default function Upload() {
   const uploadFiles = async () => {
     if (selectedFiles.length === 0) return;
     
+    // Vérifier l'authentification avant l'upload
+    try {
+      checkAuthBeforeOperation();
+    } catch (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    
     let eventsId = selectedeventsId;
     
     // Create new events if needed
@@ -186,6 +196,7 @@ export default function Upload() {
     setIsUploading(true);
 
     for (const fileData of selectedFiles) {
+      let progressInterval; // Déclarer la variable ici
       try {
         setUploadProgress(prev => ({ ...prev, [fileData.id]: 0 }));
         setProgressStep(prev => ({ ...prev, [fileData.id]: 0 }));
@@ -197,14 +208,14 @@ export default function Upload() {
         setUploadProgress(prev => ({ ...prev, [fileData.id]: 20 }));
         setProgressStep(prev => ({ ...prev, [fileData.id]: 1 }));
         // Simulate progress
-        const progressInterval = setInterval(() => {
+        progressInterval = setInterval(() => {
           setUploadProgress(prev => ({
             ...prev,
             [fileData.id]: Math.min(90, (prev[fileData.id] || 0) + 10)
           }));
         }, 200);
         // Upload file
-        const { file_url } = await UploadFile({ file: compressedFile });
+        const { file_url } = await UploadFile(compressedFile, eventsId, {});
         setProgressStep(prev => ({ ...prev, [fileData.id]: 2 }));
         // Create photo record
         try {
@@ -224,14 +235,26 @@ export default function Upload() {
         );
 
       } catch (error) {
-        console.error("Erreur lors de l'upload:", error);
-        const errorMessage = error.response?.data?.message || "Une erreur inconnue est survenue";
-        setSelectedFiles(prev =>
-          prev.map(f => f.id === fileData.id ? { ...f, status: 'error', error: errorMessage } : f)
-        );
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+        console.error('Erreur upload:', error);
+        
+        // Gestion spécifique des erreurs d'authentification
+        if (error.message && (error.message.includes('Session expirée') || error.message.includes('Token expiré'))) {
+          setErrorMessage(error.message);
+          setSelectedFiles(prev =>
+            prev.map(f => f.id === fileData.id ? { ...f, status: 'error', error: 'Erreur d\'authentification' } : f)
+          );
+        } else {
+          setErrorMessage(error.message || "Erreur lors de l'upload");
+          setSelectedFiles(prev =>
+            prev.map(f => f.id === fileData.id ? { ...f, status: 'error', error: error.message } : f)
+          );
+        }
       }
     }
-
+    
     setIsUploading(false);
   };
 
@@ -254,15 +277,24 @@ export default function Upload() {
 
       {/* Affichage des erreurs */}
       {errorMessage && (
-        <div className="error-message" style={{
-          color: 'red',
-          backgroundColor: '#fee',
-          padding: '10px',
-          borderRadius: '4px',
-          margin: '10px 0'
-        }}>
-          {errorMessage}
-        </div>
+        <Alert variant={errorMessage.includes('Session expirée') || errorMessage.includes('Token expiré') ? 'destructive' : 'warning'} className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {errorMessage}
+            {(errorMessage.includes('Session expirée') || errorMessage.includes('Token expiré')) && (
+              <div className="mt-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => window.location.href = '/login'}
+                  className="text-xs"
+                >
+                  Se reconnecter
+                </Button>
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="grid lg:grid-cols-2 gap-8">
@@ -558,6 +590,9 @@ export default function Upload() {
           </AlertDescription>
         </Alert>
       </div>
+      
+      {/* Debug Panel - visible seulement en mode développement */}
+      {import.meta.env.DEV && <DebugPanel isVisible={true} />}
     </div>
   );
 }
